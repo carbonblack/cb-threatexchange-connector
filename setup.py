@@ -138,6 +138,8 @@ def get_data_files(rootdir):
     return results
 
 data_files = get_data_files("root")
+data_files.append('cb-threatexchange-connector.spec')
+data_files.append('scripts/cb-threatexchange-connector')
 scripts = {
     'cb-threatexchange-connector': {
         'spec': 'cb-threatexchange-connector.spec',
@@ -147,7 +149,7 @@ scripts = {
 
 setup(
     name='python-cb-threatexchange-connector',
-    version="1.2",
+    version="1.0",
     packages=['cbopensource', 'cbopensource.connectors', 'cbopensource.connectors.threatexchange'],
     url='https://github.com/carbonblack/cb-threatexchange-connector',
     license='MIT',

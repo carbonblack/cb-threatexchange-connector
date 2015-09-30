@@ -151,11 +151,12 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
 
         for ioc_type in self.bridge_options["ioc_types"]:
             for result in ThreatDescriptor.objects(since=since_date, type_=ioc_type, dict_generator=True,
-                                                   limit=1000):
+                                                   limit=1000,
+                                                   fields="owner,indicator{id,indicator},type,last_updated,share_level,severity,description,report_urls,status"):
                 new_feed_results.extend(processing_engines.process_ioc(ioc_type, result))
 
         with self.feed_lock:
-            self.feed["results"] = new_feed_results
+            self.feed["reports"] = new_feed_results
 
 
 if __name__ == '__main__':
