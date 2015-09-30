@@ -1,6 +1,7 @@
 __author__ = 'jgarman'
 from datetime import datetime
 import time
+import urllib
 
 
 def start_report(raw_data):
@@ -23,11 +24,27 @@ def start_report(raw_data):
     }
 
 
+def get_indicator(raw_data):
+    return raw_data.get('indicator', {}).get('indicator', None)
+
+
 def process_cmd_line(raw_data):
     report = start_report(raw_data)
     if not report:
         return []
 
+    cmdline_indicator = get_indicator(raw_data)
+    if not cmdline_indicator:
+        return []
+    url_query = urllib.urlencode(
+        {'cb.urlver': 1, 'q': 'cmdline:"%s"' % cmdline_indicator.replace('"', '\\"')}
+    ).replace('+', "%20")
+
+    query_specification = {
+        "index_type": "events",
+        "search_query": url_query
+    }
+    report["iocs"]["query"] = [query_specification]
     return [report]
 
 
@@ -69,7 +86,7 @@ def process_ip_address(raw_data):
     report = start_report(raw_data)
     if not report:
         return []
-    ipv4_indicator = raw_data.get('indicator', {}).get('indicator', None)
+    ipv4_indicator =get_indicator(raw_data)
     if ipv4_indicator and is_ipv4_address(ipv4_indicator):
         report["iocs"]["ipv4"] = [ipv4_indicator]
         return [report]
