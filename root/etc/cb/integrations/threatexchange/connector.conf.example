@@ -1,0 +1,21 @@
+[bridge]
+#------------------------------------------------------------------------------
+#    Core Configuration
+#------------------------------------------------------------------------------
+listener_port=6100
+listener_address=127.0.0.1
+feed_retrieval_minutes=60
+#debug=1
+
+# API key for an administrative user of the Carbon Black server
+carbonblack_server_token=
+# Only uncomment out the carbonblack_server_url if you are running the connector on a machine
+#  *other* than the Cb server itself.
+# carbonblack_server_url=
+
+tx_app_id=
+tx_secret_key=
+
+# defaults below
+#tx_ioc_types=HASH_MD5,DOMAIN,REGISTRY_KEY,IP_SUBNET,FILE_NAME,CMD_LINE,IP_ADDRESS
+#tx_historical_days=1
