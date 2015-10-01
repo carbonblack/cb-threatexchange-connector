@@ -8,6 +8,7 @@ import processing_engines
 import time
 from pytx import access_token
 from pytx import ThreatDescriptor
+from pytx.errors import pytxFetchError
 from datetime import datetime, timedelta
 
 
@@ -112,7 +113,9 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         self.bridge_auth["secret_key"] = self.get_config_string("tx_secret_key")
         access_token.init(self.bridge_auth["app_id"], self.bridge_auth["secret_key"])
 
-        ioc_types = self.get_config_string("tx_ioc_types", processing_engines.ALL_INDICATOR_TYPES)
+        ioc_types = self.get_config_string("tx_ioc_types", None)
+        if not ioc_types or len(ioc_types.strip()) == 0:
+            ioc_types = processing_engines.ALL_INDICATOR_TYPES
         ioc_types = ioc_types.split(',')
         self.bridge_options["ioc_types"] = []
 
@@ -150,10 +153,15 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         since_date = since_date.strftime("%Y-%m-%d")
 
         for ioc_type in self.bridge_options["ioc_types"]:
-            for result in ThreatDescriptor.objects(since=since_date, type_=ioc_type, dict_generator=True,
-                                                   limit=1000,
-                                                   fields="owner,indicator{id,indicator},type,last_updated,share_level,severity,description,report_urls,status"):
-                new_feed_results.extend(processing_engines.process_ioc(ioc_type, result))
+            try:
+                for result in ThreatDescriptor.objects(since=since_date, type_=ioc_type, dict_generator=True,
+                                                       limit=1000, retries=10,
+                                                       fields="raw_indicator,owner,indicator{id,indicator},type,last_updated,share_level,severity,description,report_urls,status"):
+                    new_feed_results.extend(processing_engines.process_ioc(ioc_type, result))
+            except pytxFetchError:
+                self.logger.warning("Could not retrieve some IOCs of type %s. Continuing." % ioc_type)
+            except Exception:
+                self.logger.exception("Unknown exception retrieving IOCs of type %s." % ioc_type)
 
         with self.feed_lock:
             self.feed["reports"] = new_feed_results
