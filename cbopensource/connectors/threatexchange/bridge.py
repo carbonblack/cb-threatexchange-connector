@@ -130,6 +130,13 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         # retrieve once a day by default
         self.bridge_options["feed_retrieval_interval"] = self.get_config_integer("tx_retrieval_interval", 1440)
 
+        self.bridge_options["minimum_severity"] = self.get_config_string("tx_minimum_severity", "WARNING")
+        status_filter = self.get_config_string("tx_status_filter", None)
+        if type(status_filter) == str:
+            self.bridge_options["status_filter"] = status_filter.split(',')
+        else:
+            self.bridge_options["status_filter"] = None
+
         return True
 
     def perform_continuous_feed_retrieval(self):
@@ -157,7 +164,10 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
                 for result in ThreatDescriptor.objects(since=since_date, type_=ioc_type, dict_generator=True,
                                                        limit=1000, retries=10,
                                                        fields="raw_indicator,owner,indicator{id,indicator},type,last_updated,share_level,severity,description,report_urls,status"):
-                    new_feed_results.extend(processing_engines.process_ioc(ioc_type, result))
+                    new_feed_results.extend(
+                        processing_engines.process_ioc(ioc_type, result,
+                                                       minimum_severity=self.bridge_options["minimum_severity"],
+                                                       status_filter=self.bridge_options["status_filter"]))
             except pytxFetchError:
                 self.logger.warning("Could not retrieve some IOCs of type %s. Continuing." % ioc_type)
             except Exception:
