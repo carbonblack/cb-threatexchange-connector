@@ -49,7 +49,10 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
             self.feed = generate_feed(
                 self.feed_name,
                 summary="Threat intelligence data from Facebook ThreatExchange",
-                tech_data="There are no requirements to share any data to receive this feed.",
+                tech_data="""This connector enables members of the Facebook Threat Exchange to import threat indicators
+                from the Threat Exchange, including domain names, IPs, hashes, and behavioral indicators, into Carbon
+                Black. The Facebook Threat Exchange and its members provide and maintain this data. This connector
+                requires an Access Token to the Facebook Threat Exchange API.""",
                 provider_url="https://developers.facebook.com/docs/threat-exchange",
                 icon_path="%s/%s" % (self.directory, self.integration_image_path),
                 display_name=self.display_name,
