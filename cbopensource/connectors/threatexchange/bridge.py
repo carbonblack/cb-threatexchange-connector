@@ -11,6 +11,7 @@ from pytx import access_token
 from pytx import ThreatDescriptor
 from pytx.errors import pytxFetchError
 from datetime import datetime, timedelta
+import cbapi
 
 
 class ThreatExchangeConnector(CbIntegrationDaemon):
@@ -101,6 +102,15 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
 
     def run(self):
         self.logger.info("starting Carbon Black <-> ThreatExchange Connector | version %s" % __version__)
+
+        self.debug = self.get_config_boolean('debug', False)
+        if self.debug:
+            self.logger.setLevel(logging.DEBUG)
+
+        self.cb = cbapi.CbApi(self.get_config_string('carbonblack_server_url', 'https://127.0.0.1'),
+                              token=self.get_config_string('carbonblack_server_token'),
+                              ssl_verify=self.get_config_boolean('carbonblack_server_sslverify'), False)
+
         self.logger.debug("starting continuous feed retrieval thread")
         work_thread = threading.Thread(target=self.perform_continuous_feed_retrieval)
         work_thread.setDaemon(True)
@@ -111,7 +121,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
 
     def validate_config(self):
         super(ThreatExchangeConnector, self).validate_config()
-        self.check_required_options(["tx_app_id", "tx_secret_key"])
+        self.check_required_options(["tx_app_id", "tx_secret_key", "carbonblack_server_token"])
 
         self.bridge_options["listener_port"] = self.get_config_integer("listener_port", 6120)
 

@@ -12,6 +12,7 @@ carbonblack_server_token=
 # Only uncomment out the carbonblack_server_url if you are running the connector on a machine
 #  *other* than the Cb server itself.
 # carbonblack_server_url=
+# carbonblack_server_sslverify=0
 
 tx_app_id=
 tx_secret_key=
