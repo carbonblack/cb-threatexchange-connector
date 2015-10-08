@@ -109,7 +109,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
 
         self.cb = cbapi.CbApi(self.get_config_string('carbonblack_server_url', 'https://127.0.0.1'),
                               token=self.get_config_string('carbonblack_server_token'),
-                              ssl_verify=self.get_config_boolean('carbonblack_server_sslverify'), False)
+                              ssl_verify=self.get_config_boolean('carbonblack_server_sslverify', False))
 
         self.logger.debug("starting continuous feed retrieval thread")
         work_thread = threading.Thread(target=self.perform_continuous_feed_retrieval)
