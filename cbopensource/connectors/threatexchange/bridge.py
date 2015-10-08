@@ -1,6 +1,7 @@
 from cbint import CbIntegrationDaemon
 from cbint.utils.flaskfeed import FlaskFeed
 from cbint.utils.feed import generate_feed
+from cbint.utils.daemon import Timer
 import logging
 import threading
 from version import __version__
@@ -149,7 +150,9 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
             self.logger.debug("Starting retrieval iteration")
 
             try:
-                self.perform_feed_retrieval()
+                with Timer() as t:
+                    self.perform_feed_retrieval()
+                self.logger.info("Facebook ThreatExchange feed retrieval succeeded after %0.2f seconds" % t.interval)
                 time.sleep(self.bridge_options["feed_retrieval_interval"] * 60)
             except Exception as e:
                 self.logger.exception("Exception during feed retrieval. Will retry in 60 seconds")
