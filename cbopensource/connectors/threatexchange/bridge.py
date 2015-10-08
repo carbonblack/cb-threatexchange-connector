@@ -58,7 +58,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
 
     def serve(self):
         address = self.bridge_options.get('listener_address', '127.0.0.1')
-        port = self.bridge_options['listener_port']
+        port = self.bridge_options.get('listener_port', 6120)
         self.logger.info("starting flask server: %s:%s" % (address, port))
         self.flask_feed.app.run(port=port, debug=self.debug,
                                 host=address, use_reloader=False)
@@ -108,6 +108,8 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
     def validate_config(self):
         super(ThreatExchangeConnector, self).validate_config()
         self.check_required_options(["tx_app_id", "tx_secret_key"])
+
+        self.bridge_options["listener_port"] = self.get_config_integer("listener_port", 6120)
 
         self.bridge_auth["app_id"] = self.get_config_string("tx_app_id")
         self.bridge_auth["secret_key"] = self.get_config_string("tx_secret_key")
