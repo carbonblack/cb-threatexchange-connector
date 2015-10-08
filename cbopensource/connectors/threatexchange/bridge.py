@@ -156,6 +156,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
                 with Timer() as t:
                     self.perform_feed_retrieval()
                 self.logger.info("Facebook ThreatExchange feed retrieval succeeded after %0.2f seconds" % t.interval)
+                self.cb.feed_synchronize(self.feed_name)
                 time.sleep(self.bridge_options["feed_retrieval_interval"] * 60)
             except Exception as e:
                 self.logger.exception("Exception during feed retrieval. Will retry in 60 seconds")
