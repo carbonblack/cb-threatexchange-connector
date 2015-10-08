@@ -100,6 +100,21 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         if self.debug:
             self.logger.setLevel(logging.DEBUG)
 
+    def get_or_create_feed(self):
+        feed_id = self.cb.feed_get_id_by_name(self.name)
+        self.logger.info("Feed id for %s: %s" % (self.name, feed_id))
+        if not feed_id:
+            feed_url = "http://%s:%d%s" % (self.bridge_options["feed_host"], int(self.bridge_options["listener_port"]),
+                                           self.json_feed_path)
+            self.logger.info("Creating %s feed @ %s for the first time" % (self.name, feed_url))
+            # TODO: clarification of feed_host vs listener_address
+            result = self.cb.feed_add_from_url(feed_url, True, False, False)
+
+            # TODO: defensive coding around these self.cb calls
+            feed_id = result.get('id', 0)
+
+        return feed_id
+
     def run(self):
         self.logger.info("starting Carbon Black <-> ThreatExchange Connector | version %s" % __version__)
 
@@ -124,6 +139,8 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         self.check_required_options(["tx_app_id", "tx_secret_key", "carbonblack_server_token"])
 
         self.bridge_options["listener_port"] = self.get_config_integer("listener_port", 6120)
+        self.bridge_options["feed_host"] = self.get_config_string("feed_host", "127.0.0.1")
+        self.bridge_options["listener_address"] = self.get_config_string("listener_address", "0.0.0.0")
 
         self.bridge_auth["app_id"] = self.get_config_string("tx_app_id")
         self.bridge_auth["secret_key"] = self.get_config_string("tx_secret_key")
@@ -166,6 +183,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
                 with Timer() as t:
                     self.perform_feed_retrieval()
                 self.logger.info("Facebook ThreatExchange feed retrieval succeeded after %0.2f seconds" % t.interval)
+                self.get_or_create_feed()
                 self.cb.feed_synchronize(self.feed_name)
                 time.sleep(self.bridge_options["feed_retrieval_interval"] * 60)
             except Exception as e:
