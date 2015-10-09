@@ -3,3 +3,4 @@
 -e git://github.com/carbonblack/cb-integration.git#egg=cbint
 requests >= 2.7.0
 -e git://github.com/facebook/ThreatExchange.git#egg=pytx&subdirectory=pytx
+ipaddr

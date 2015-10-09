@@ -3,6 +3,8 @@ import time
 import urllib
 import logging
 import re
+import ipaddr
+import struct
 
 
 log = logging.getLogger(__name__)
@@ -186,6 +188,29 @@ def process_ip_subnet(raw_data):
     report = start_report(raw_data)
     if not report:
         return []
+    iprange_indicator = get_indicator(raw_data)
+    try:
+        ipnetwork = ipaddr.IPv4Network(iprange_indicator)
+    except ipaddr.AddressValueError:
+        return []
+
+    if ipnetwork.prefixlen > 24:
+        report["iocs"]["ipv4"] = []
+        for h in ipnetwork.iterhosts():
+            report["iocs"]["ipv4"].append(str(h))
+    else:
+        beginning_ip_address = struct.unpack('>i', ipnetwork.ip.packed)[0]
+        end_ip_address = beginning_ip_address + ipnetwork.numhosts - 1
+        url_query = urllib.urlencode(
+            {'cb.urlver': 1, 'q': 'ipaddr:[%s TO %s]' % (beginning_ip_address, end_ip_address)}
+        ).replace('+', "%20")
+
+        query_specification = {
+            "index_type": "events",
+            "search_query": url_query
+        }
+
+        report["iocs"]["query"] = [query_specification]
     return report
 
 
@@ -194,8 +219,22 @@ def process_registry_key(raw_data):
     if not report:
         return []
     regmod_indicator = get_indicator(raw_data)
+
     if not regmod_indicator:
         return []
+
+    # normalize the registry indicator
+    regmod_indicator = regmod_indicator.lower()
+    regmod_parts = regmod_indicator.split('\\')
+
+    if regmod_parts[0] == 'hkey_local_machine':
+        regmod_parts[0] = 'machine'
+    else:
+        # we only support hkey_local_machine
+        return []
+
+    regmod_indicator = "\\registry\\" + "\\".join(regmod_parts)
+
     url_query = urllib.urlencode(
         {'cb.urlver': 1, 'q': 'regmod:"%s"' % regmod_indicator.replace('"', '\\"')}
     ).replace('+', "%20")
