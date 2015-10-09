@@ -36,6 +36,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         self.directory = template_folder
         self.cb_image_path = "/carbonblack.png"
         self.integration_image_path = "/threatexchange.png"
+        self.integration_small_image_path = "/threatexchange-small.png"
         self.json_feed_path = "/threatexchange/json"
         self.feed_lock = threading.RLock()
 
@@ -56,6 +57,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
                 requires an Access Token to the Facebook Threat Exchange API.""",
                 provider_url="https://developers.facebook.com/docs/threat-exchange",
                 icon_path="%s/%s" % (self.directory, self.integration_image_path),
+                small_icon_path="%s/%s" % (self.directory, self.integration_small_image_path),
                 display_name=self.display_name,
                 category="Partner")
             self.last_sync = "No sync performed"
