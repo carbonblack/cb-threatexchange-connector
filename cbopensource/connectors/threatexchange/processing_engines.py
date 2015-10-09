@@ -2,6 +2,7 @@ __author__ = 'jgarman'
 import time
 import urllib
 import logging
+import re
 
 
 log = logging.getLogger(__name__)
@@ -17,16 +18,16 @@ SEVERITY_LEVELS = [
 ]
 SEVERITY_LOOKUP = dict([(value, index) for (index, value) in enumerate(SEVERITY_LEVELS)])
 SEVERITY_SCORE_MAP = {
-    "UNKNOWN": 0,
-    "INFO": 10,
-    "WARNING": 25,
-    "SUSPICIOUS": 50,
+    "UNKNOWN": 10,
+    "INFO": 25,
+    "WARNING": 40,
+    "SUSPICIOUS": 60,
     "SEVERE": 80,
     "APOCALYPSE": 100
 }
 
 
-def start_report(raw_data):
+def get_original_description(raw_data):
     description = raw_data.get('description', '')
     via = raw_data.get('owner', {}).get('name', None)
     email = raw_data.get('owner', {}).get('email', None)
@@ -45,11 +46,40 @@ def start_report(raw_data):
         if email:
             description += " <%s>" % email
 
+    return description, "txid-%s" % txid
+
+
+strip_non_alphanum = re.compile('[\W_]+', re.UNICODE)
+
+
+def get_new_description(raw_data):
+    via = raw_data.get('owner', {}).get('name', None)
+    via_id = raw_data.get('owner', {}).get('id', None)
+    severity_level = raw_data.get('severity', 'UNKNOWN')
+
+    description = ""
+    txid = "txid-%s" % severity_level.lower()
+
+    if via:
+        description += "Data provided by Threat Exchange Member '%s'" % via
+        if via_id:
+            description += " with ID of '%s'" % via_id
+        description += ". "
+
+        txid += "-%s" % strip_non_alphanum.sub('-', via)
+
+    description += "All IOCs in this report are severity_level %s." % severity_level
+
+    return description, txid
+
+
+def start_report(raw_data):
+    description, txid = get_new_description(raw_data)
     return {
         "timestamp": int(time.time()),
         "iocs": {},
-        "link": "",
-        "id": "txid-%s" % txid,
+        "link": "https://developers.facebook.com/products/threat-exchange",
+        "id": txid,
         "title": description,
         "score": SEVERITY_SCORE_MAP.get(raw_data.get('severity', 'UNKNOWN'), 0)
     }
@@ -163,7 +193,19 @@ def process_registry_key(raw_data):
     report = start_report(raw_data)
     if not report:
         return []
-    return report
+    regmod_indicator = get_indicator(raw_data)
+    if not regmod_indicator:
+        return []
+    url_query = urllib.urlencode(
+        {'cb.urlver': 1, 'q': 'regmod:"%s"' % regmod_indicator.replace('"', '\\"')}
+    ).replace('+', "%20")
+
+    query_specification = {
+        "index_type": "events",
+        "search_query": url_query
+    }
+    report["iocs"]["query"] = [query_specification]
+    return [report]
 
 
 INDICATOR_PROCESSORS = {

@@ -12,6 +12,52 @@ from pytx import ThreatDescriptor
 from pytx.errors import pytxFetchError
 from datetime import datetime, timedelta
 import cbapi
+import copy
+from collections import defaultdict
+
+
+class FeedHandler(object):
+    def __init__(self, feed_metadata):
+        self.feed_metadata = feed_metadata
+        self.data = {}
+        self.iocs = {}
+
+    def add_report(self, report):
+        if len(report.get("iocs", {})) == 0:
+            return
+
+        # the de-duplication key is the id
+        report_key = report.get('id')
+        if not report_key:
+            return
+
+        if report_key not in self.data:
+            self.data[report_key] = {
+                'timestamp': report.get('timestamp'),
+                'iocs': {},
+                'link': report.get('link'),
+                'id': report.get('id'),
+                'title': report.get('title'),
+                'score': report.get('score')
+            }
+            self.iocs[report_key] = defaultdict(set)
+
+        for ioc_type in report.get('iocs', {}):
+            new_report_iocs = self.iocs[report_key]
+            for ioc_value in report['iocs'][ioc_type]:
+                new_report_iocs[ioc_type].add(ioc_value)
+
+    def retrieve_feed(self):
+        retval = copy.deepcopy(self.feed_metadata)
+        retval["reports"] = [self.retrieve_report_for(k) for k in self.data.iterkeys()]
+        return retval
+
+    def retrieve_report_for(self, key):
+        retval = copy.deepcopy(self.data[key])
+        for ioc_type in self.iocs[key]:
+            retval["iocs"][ioc_type] = list(self.iocs[key][ioc_type])
+
+        return retval
 
 
 class ThreatExchangeConnector(CbIntegrationDaemon):
@@ -22,17 +68,14 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         self.flask_feed = FlaskFeed(__name__, False, template_folder)
         self.bridge_options = {}
         self.bridge_auth = {}
-        self.api_urns = {}
         self.validated_config = False
         if 'bridge' in self.options:
             self.debug = self.options['bridge'].get("debug", 0)
         if self.debug:
             self.logger.setLevel(logging.DEBUG)
         self.cb = None
-        self.sync_needed = False
         self.feed_name = "threatexchange"
         self.display_name = "ThreatExchange"
-        self.feed = {}
         self.directory = template_folder
         self.cb_image_path = "/carbonblack.png"
         self.integration_image_path = "/threatexchange.png"
@@ -48,7 +91,12 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
 
         self.logger.debug("generating feed metadata")
         with self.feed_lock:
-            self.feed = generate_feed(
+            self.feed = self.create_feed()
+            self.last_sync = "No sync performed"
+            self.last_successful_sync = "No sync performed"
+
+    def create_feed(self):
+        return FeedHandler(generate_feed(
                 self.feed_name,
                 summary="Threat intelligence data from Facebook ThreatExchange",
                 tech_data="""This connector enables members of the Facebook Threat Exchange to import threat indicators
@@ -59,9 +107,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
                 icon_path="%s/%s" % (self.directory, self.integration_image_path),
                 small_icon_path="%s/%s" % (self.directory, self.integration_small_image_path),
                 display_name=self.display_name,
-                category="Partner")
-            self.last_sync = "No sync performed"
-            self.last_successful_sync = "No sync performed"
+                category="Partner"))
 
     def serve(self):
         address = self.bridge_options.get('listener_address', '127.0.0.1')
@@ -72,17 +118,17 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
 
     def handle_json_feed_request(self):
         with self.feed_lock:
-            json = self.flask_feed.generate_json_feed(self.feed)
+            json = self.flask_feed.generate_json_feed(self.feed.retrieve_feed())
         return json
 
     def handle_html_feed_request(self):
         with self.feed_lock:
-            html = self.flask_feed.generate_html_feed(self.feed, self.display_name)
+            html = self.flask_feed.generate_html_feed(self.feed.retrieve_feed(), self.display_name)
         return html
 
     def handle_index_request(self):
         with self.feed_lock:
-            index = self.flask_feed.generate_html_index(self.feed, self.bridge_options, self.display_name,
+            index = self.flask_feed.generate_html_index(self.feed.retrieve_feed(), self.bridge_options, self.display_name,
                                                         self.cb_image_path, self.integration_image_path,
                                                         self.json_feed_path, self.last_sync)
         return index
@@ -193,7 +239,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
                 time.sleep(60)
 
     def perform_feed_retrieval(self):
-        new_feed_results = []
+        new_feed = self.create_feed()
 
         since_date = datetime.utcnow() - timedelta(days=self.bridge_options["historical_days"])
         since_date = since_date.strftime("%Y-%m-%d")
@@ -203,17 +249,18 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
                 for result in ThreatDescriptor.objects(since=since_date, type_=ioc_type, dict_generator=True,
                                                        limit=1000, retries=10,
                                                        fields="raw_indicator,owner,indicator{id,indicator},type,last_updated,share_level,severity,description,report_urls,status"):
-                    new_feed_results.extend(
-                        processing_engines.process_ioc(ioc_type, result,
+                    new_reports = processing_engines.process_ioc(ioc_type, result,
                                                        minimum_severity=self.bridge_options["minimum_severity"],
-                                                       status_filter=self.bridge_options["status_filter"]))
+                                                       status_filter=self.bridge_options["status_filter"])
+                    for report in new_reports:
+                        new_feed.add_report(report)
             except pytxFetchError:
                 self.logger.warning("Could not retrieve some IOCs of type %s. Continuing." % ioc_type)
             except Exception:
                 self.logger.exception("Unknown exception retrieving IOCs of type %s." % ioc_type)
 
         with self.feed_lock:
-            self.feed["reports"] = new_feed_results
+            self.feed = new_feed
 
 
 if __name__ == '__main__':
