@@ -108,11 +108,7 @@ def process_cmd_line(raw_data):
         {'cb.urlver': 1, 'q': 'cmdline:"%s"' % cmdline_indicator.replace('"', '\\"')}
     ).replace('+', "%20")
 
-    query_specification = {
-        "index_type": "events",
-        "search_query": url_query
-    }
-    report["iocs"]["query"] = [query_specification]
+    report["iocs"]["query"] = [url_query]
     return [report]
 
 
@@ -135,15 +131,13 @@ def process_file_name(raw_data):
     filename_indicator = get_indicator(raw_data)
     if not filename_indicator:
         return []
+
+    filename_indicator = filename_indicator.lower()
     url_query = urllib.urlencode(
         {'cb.urlver': 1, 'q': 'filemod:"%s"' % filename_indicator.replace('"', '\\"')}
     ).replace('+', "%20")
 
-    query_specification = {
-        "index_type": "events",
-        "search_query": url_query
-    }
-    report["iocs"]["query"] = [query_specification]
+    report["iocs"]["query"] = [url_query]
     return [report]
 
 
@@ -181,6 +175,7 @@ def process_ip_address(raw_data):
         report["iocs"]["ipv4"] = [ipv4_indicator]
         return [report]
     else:
+        log.warning("IP address indicator skipped as it is not an IPv4 address: %s" % raw_data)
         return []
 
 
@@ -192,6 +187,7 @@ def process_ip_subnet(raw_data):
     try:
         ipnetwork = ipaddr.IPv4Network(iprange_indicator)
     except ipaddr.AddressValueError:
+        log.warning("IP subnet indicator skipped as it is not an IPv4 subnet: %s" % raw_data)
         return []
 
     if ipnetwork.prefixlen > 24:
@@ -205,12 +201,7 @@ def process_ip_subnet(raw_data):
             {'cb.urlver': 1, 'q': 'ipaddr:[%s TO %s]' % (beginning_ip_address, end_ip_address)}
         ).replace('+', "%20")
 
-        query_specification = {
-            "index_type": "events",
-            "search_query": url_query
-        }
-
-        report["iocs"]["query"] = [query_specification]
+        report["iocs"]["query"] = [url_query]
     return report
 
 
@@ -225,12 +216,14 @@ def process_registry_key(raw_data):
 
     # normalize the registry indicator
     regmod_indicator = regmod_indicator.lower()
+    regmod_indicator = regmod_indicator.rstrip('\\')
     regmod_parts = regmod_indicator.split('\\')
 
     if regmod_parts[0] == 'hkey_local_machine':
         regmod_parts[0] = 'machine'
     else:
         # we only support hkey_local_machine
+        log.warning("Registry indicator skipped as it is not in the HKLM hive: %s" % raw_data)
         return []
 
     regmod_indicator = "\\registry\\" + "\\".join(regmod_parts)
@@ -239,11 +232,7 @@ def process_registry_key(raw_data):
         {'cb.urlver': 1, 'q': 'regmod:"%s"' % regmod_indicator.replace('"', '\\"')}
     ).replace('+', "%20")
 
-    query_specification = {
-        "index_type": "events",
-        "search_query": url_query
-    }
-    report["iocs"]["query"] = [query_specification]
+    report["iocs"]["query"] = [url_query]
     return [report]
 
 

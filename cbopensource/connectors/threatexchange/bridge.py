@@ -55,7 +55,15 @@ class FeedHandler(object):
     def retrieve_report_for(self, key):
         retval = copy.deepcopy(self.data[key])
         for ioc_type in self.iocs[key]:
-            retval["iocs"][ioc_type] = list(self.iocs[key][ioc_type])
+            if ioc_type == 'query':
+                retval["iocs"][ioc_type] = []
+                for url_query in self.iocs[key][ioc_type]:
+                    retval["iocs"][ioc_type].append({
+                        "index_type": "events",
+                        "search_query": url_query
+                    })
+            else:
+                retval["iocs"][ioc_type] = list(self.iocs[key][ioc_type])
 
         return retval
 
