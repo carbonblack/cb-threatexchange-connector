@@ -1,7 +1,7 @@
 # -*- mode: python -*-
 a = Analysis(['scripts/cb-threatexchange-connector'],
              pathex=['.'],
-             hiddenimports=['unicodedata'],
+             hiddenimports=['unicodedata', 'cbint.utils.daemon'],
              hookspath=None,
              runtime_hooks=None)
 pyz = PYZ(a.pure)

@@ -1,7 +1,7 @@
 from cbint import CbIntegrationDaemon
 from cbint.utils.flaskfeed import FlaskFeed
 from cbint.utils.feed import generate_feed
-from cbint.utils.daemon import Timer
+from cbint.utils.daemon import Timer, ConfigurationError
 import logging
 import threading
 from version import __version__
@@ -76,11 +76,13 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         self.flask_feed = FlaskFeed(__name__, False, template_folder)
         self.bridge_options = {}
         self.bridge_auth = {}
-        self.validated_config = False
         if 'bridge' in self.options:
             self.debug = self.options['bridge'].get("debug", 0)
         if self.debug:
             self.logger.setLevel(logging.DEBUG)
+
+        self.validated_config = self.validate_config()
+
         self.cb = None
         self.feed_name = "threatexchange"
         self.display_name = "ThreatExchange"
@@ -107,11 +109,12 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         return FeedHandler(generate_feed(
                 self.feed_name,
                 summary="Threat intelligence data from Facebook ThreatExchange",
-                tech_data="""This connector enables members of the Facebook Threat Exchange to import threat indicators
-                from the Threat Exchange, including domain names, IPs, hashes, and behavioral indicators, into Carbon
-                Black. The Facebook Threat Exchange and its members provide and maintain this data. This connector
-                requires an Access Token to the Facebook Threat Exchange API.""",
-                provider_url="https://developers.facebook.com/docs/threat-exchange",
+                tech_data="""This connector enables members of the Facebook ThreatExchange to import threat indicators
+                from the ThreatExchange, including domain names, IPs, hashes, and behavioral indicators, into Carbon
+                Black. The Facebook ThreatExchange and its members provide and maintain this data. This connector
+                requires an Access Token to the Facebook ThreatExchange API.  For more information, visit:
+                https://developers.facebook.com/products/threat-exchange/""",
+                provider_url="https://developers.facebook.com/products/threat-exchange",
                 icon_path="%s/%s" % (self.directory, self.integration_image_path),
                 small_icon_path="%s/%s" % (self.directory, self.integration_small_image_path),
                 display_name=self.display_name,
@@ -190,6 +193,14 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         self.logger.debug("starting flask")
         self.serve()
 
+    def check_required_options(self, opts):
+        CbIntegrationDaemon.check_required_options(self, opts)
+        for opt in opts:
+            val = self.cfg.get("bridge", opt)
+            if not val or len(val) == 0:
+                raise ConfigurationError("Configuration file has option %s in [bridge] section but not set to value " %
+                                         opt)
+
     def validate_config(self):
         super(ThreatExchangeConnector, self).validate_config()
         self.check_required_options(["tx_app_id", "tx_secret_key", "carbonblack_server_token"])
@@ -214,7 +225,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
             else:
                 self.bridge_options["ioc_types"].append(ioc_type)
 
-        self.bridge_options["historical_days"] = self.get_config_integer("tx_historical_days", 1)
+        self.bridge_options["historical_days"] = self.get_config_integer("tx_historical_days", 30)
 
         # retrieve once a day by default
         self.bridge_options["feed_retrieval_interval"] = self.get_config_integer("tx_retrieval_interval", 1440)
@@ -233,7 +244,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
             self.validate_config()
 
         while True:
-            self.logger.debug("Starting retrieval iteration")
+            self.logger.info("Beginning Feed Retrieval")
 
             try:
                 with Timer() as t:
@@ -249,30 +260,55 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
     def perform_feed_retrieval(self):
         new_feed = self.create_feed()
 
-        since_date = datetime.utcnow() - timedelta(days=self.bridge_options["historical_days"])
-        since_date = since_date.strftime("%Y-%m-%d")
+        tx_limit = self.bridge_options.get('tx_request_limit', 100) or 100
+        tx_retries = self.bridge_options.get('tx_request_retries', 10) or 10
 
-        for ioc_type in self.bridge_options["ioc_types"]:
-            try:
-                for result in ThreatDescriptor.objects(since=since_date, type_=ioc_type, dict_generator=True,
-                                                       limit=1000, retries=10,
-                                                       fields="raw_indicator,owner,indicator{id,indicator},type,last_updated,share_level,severity,description,report_urls,status"):
-                    new_reports = processing_engines.process_ioc(ioc_type, result,
-                                                       minimum_severity=self.bridge_options["minimum_severity"],
-                                                       status_filter=self.bridge_options["status_filter"])
-                    for report in new_reports:
-                        new_feed.add_report(report)
-            except pytxFetchError:
-                self.logger.warning("Could not retrieve some IOCs of type %s. Continuing." % ioc_type)
-            except Exception:
-                self.logger.exception("Unknown exception retrieving IOCs of type %s." % ioc_type)
+        now = datetime.utcnow()
+        since_date = now - timedelta(days=self.bridge_options["historical_days"])
+        since_date_str = since_date.strftime("%Y-%m-%d")
+        until_date = since_date
+
+        while until_date <= now:
+            until_date += timedelta(days=1)
+            until_date_str = until_date.strftime("%Y-%m-%d")
+
+            for ioc_type in self.bridge_options["ioc_types"]:
+                self.logger.info("Pulling %s IOCs (%s to %s)" % (ioc_type, since_date_str, until_date_str))
+                try:
+                    count = 0
+                    for result in ThreatDescriptor.objects(since=since_date_str,
+                                                           until=until_date_str,
+                                                           type_=ioc_type,
+                                                           dict_generator=True,
+                                                           limit=tx_limit,
+                                                           retries=tx_retries,
+                                                           fields="raw_indicator,owner,indicator{id,indicator},type,last_updated,share_level,severity,description,report_urls,status"):
+
+                        new_reports = processing_engines.process_ioc(ioc_type,
+                                                                     result,
+                                                                     minimum_severity=self.bridge_options["minimum_severity"],
+                                                                     status_filter=self.bridge_options["status_filter"])
+
+                        for report in new_reports:
+                            new_feed.add_report(report)
+                            count += 1
+
+                    self.logger.info("%s added %d reports" % (ioc_type, count))
+
+                except pytxFetchError:
+                    self.logger.warning("Could not retrieve some IOCs of type %s. Continuing." % ioc_type)
+                except Exception:
+                    self.logger.exception("Unknown exception retrieving IOCs of type %s." % ioc_type)
+
+            # update the start date
+            since_date_str = until_date_str
 
         with self.feed_lock:
             self.feed = new_feed
 
 
 if __name__ == '__main__':
-    tx = ThreatExchangeConnector("threatexchange", "testing.config", logfile="/tmp/blah.log", debug=True)
+    tx = ThreatExchangeConnector("threatexchangeconnector", "testing.config", logfile="/tmp/cb-tx-test.log", debug=True)
     tx.validate_config()
     tx.perform_feed_retrieval()
     print tx.handle_json_feed_request().get_data()

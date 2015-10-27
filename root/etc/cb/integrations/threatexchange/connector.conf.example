@@ -1,22 +1,64 @@
+#
+# Carbon Black - Facebook ThreatExchange Config File
+#
+#
+
 [bridge]
 #------------------------------------------------------------------------------
-#    Core Configuration
+#    FEED CONFIGURATION
 #------------------------------------------------------------------------------
+
+# FEED SETTINGS (PROBABLY LEAVE AS-IS)
 listener_port=6120
 listener_address=127.0.0.1
-feed_retrieval_minutes=60
+
+# HOW OFTEN TO REBUILD FEED (every two hours)
+feed_retrieval_minutes=120
+
 #debug=1
 
+
+#------------------------------------------------------------------------------
+#     CARBON BLACK CONFIGURATION
+#------------------------------------------------------------------------------
+
+#### CB SERVER API TOKEN (REQUIRED!)
 # API key for an administrative user of the Carbon Black server
 carbonblack_server_token=
+
+
+#### CB SERVER URL
 # Only uncomment out the carbonblack_server_url if you are running the connector on a machine
-#  *other* than the Cb server itself.
+# *other* than the Cb server itself, or if you need to specify a different port
+# (should be the same as the CB UI)
 # carbonblack_server_url=
+
+#### CB SERVER SSL CERT
+# If you don't want to validate the SSL cert
+# (probably want =0 for self-signed CB server unless you installed a cert)
 # carbonblack_server_sslverify=0
 
+
+#------------------------------------------------------------------------------
+#    THREATEXCHANGE CONFIGURATION
+#------------------------------------------------------------------------------
+
+# API CREDENTIALS (REQUIRED!)
 tx_app_id=
 tx_secret_key=
+tx_minimum_severity=INFO
 
-# defaults below
+# receive up to 100 records per request
+tx_request_limit=100
+
+# retry up to 10 times
+tx_request_retries=10
+
+# CHANGE THESE IF YOU HAVE SPECIFIC VALUES YOU WANT
+# THE COMMENTED OUT VALUES ARE THE DEFAULTS
 #tx_ioc_types=HASH_MD5,DOMAIN,REGISTRY_KEY,IP_SUBNET,FILE_NAME,CMD_LINE,IP_ADDRESS
-#tx_historical_days=1
+
+
+# GO BACK 30 DAYS IN OUR FEED (THIS IS REVOLVING)
+tx_historical_days=30
+

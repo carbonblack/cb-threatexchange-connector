@@ -72,17 +72,19 @@ def get_new_description(raw_data):
 
     description += "All IOCs in this report are severity_level %s." % severity_level
 
-    return description, txid
+    title = "%s - %s WARNING" % (via, severity_level)
+    return title, description, txid
 
 
 def start_report(raw_data):
-    description, txid = get_new_description(raw_data)
+    title, description, txid = get_new_description(raw_data)
     return {
         "timestamp": int(time.time()),
         "iocs": {},
         "link": "https://developers.facebook.com/products/threat-exchange",
         "id": txid,
-        "title": description,
+        "description": description,
+        "title": title,
         "score": SEVERITY_SCORE_MAP.get(raw_data.get('severity', 'UNKNOWN'), 0)
     }
 
