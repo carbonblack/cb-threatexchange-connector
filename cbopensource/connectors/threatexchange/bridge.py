@@ -108,7 +108,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
     def create_feed(self):
         return FeedHandler(generate_feed(
                 self.feed_name,
-                summary="Threat intelligence data from Facebook ThreatExchange",
+                summary="Connector for Threat intelligence data from Facebook ThreatExchange",
                 tech_data="""This connector enables members of the Facebook ThreatExchange to import threat indicators
                 from the ThreatExchange, including domain names, IPs, hashes, and behavioral indicators, into Carbon
                 Black. The Facebook ThreatExchange and its members provide and maintain this data. This connector
