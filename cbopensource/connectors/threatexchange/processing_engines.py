@@ -237,15 +237,16 @@ def process_registry_key(raw_data):
     report["iocs"]["query"] = [url_query]
     return [report]
 
-
+# COMMENTED OUT SOME OF THESE BECAUSE WE CAN ONLY HAVE 1 QUERY IOC IN EACH REPORT,
+# SO WE NEED TO FIGURE OUT THE BEST WAY TO DO THIS (using 'OR' or seperate reports, etc)
 INDICATOR_PROCESSORS = {
-    "CMD_LINE": process_cmd_line,
     "DOMAIN": process_domain,
-    "FILE_NAME": process_file_name,
     "HASH_MD5": process_hash_md5,
     "IP_ADDRESS": process_ip_address,
-    "IP_SUBNET": process_ip_subnet,
-    "REGISTRY_KEY": process_registry_key
+#    "CMD_LINE": process_cmd_line,
+#    "FILE_NAME": process_file_name,
+#    "IP_SUBNET": process_ip_subnet,
+#    "REGISTRY_KEY": process_registry_key
 }
 ALL_INDICATOR_TYPES = ','.join(INDICATOR_PROCESSORS)
 

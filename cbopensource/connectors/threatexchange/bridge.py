@@ -268,7 +268,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         since_date_str = since_date.strftime("%Y-%m-%d")
         until_date = since_date
 
-        while until_date <= now:
+        while until_date < now:
             until_date += timedelta(days=1)
             until_date_str = until_date.strftime("%Y-%m-%d")
 
@@ -293,7 +293,10 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
                             new_feed.add_report(report)
                             count += 1
 
-                    self.logger.info("%s added %d reports" % (ioc_type, count))
+                        if count % 1000 == 0:
+                            self.logger.info("%s added %d reports for this iteration" % (ioc_type, count))
+
+                    self.logger.info("%s added %d reports TOTAL" % (ioc_type, count))
 
                 except pytxFetchError:
                     self.logger.warning("Could not retrieve some IOCs of type %s. Continuing." % ioc_type)
@@ -311,4 +314,6 @@ if __name__ == '__main__':
     tx = ThreatExchangeConnector("threatexchangeconnector", "testing.config", logfile="/tmp/cb-tx-test.log", debug=True)
     tx.validate_config()
     tx.perform_feed_retrieval()
-    print tx.handle_json_feed_request().get_data()
+    f = file('/tmp/cb-out.json', 'wb')
+    f.write(tx.handle_json_feed_request().get_data())
+    f.close()
