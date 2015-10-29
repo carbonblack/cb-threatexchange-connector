@@ -228,7 +228,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         self.bridge_options["historical_days"] = self.get_config_integer("tx_historical_days", 7)
 
         # retrieve once a day by default
-        self.bridge_options["feed_retrieval_interval"] = self.get_config_integer("tx_retrieval_interval", 120)
+        self.bridge_options["feed_retrieval_minutes"] = self.get_config_integer("feed_retrieval_minutes", 120)
 
         self.bridge_options["minimum_severity"] = self.get_config_string("tx_minimum_severity", "WARNING")
         status_filter = self.get_config_string("tx_status_filter", None)
@@ -243,7 +243,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         if not self.validated_config:
             self.validate_config()
 
-        sleep_secs = int(self.bridge_options["feed_retrieval_interval"]) * 60
+        sleep_secs = int(self.bridge_options["feed_retrieval_minutes"]) * 60
 
         while True:
             self.logger.info("Beginning Feed Retrieval")
