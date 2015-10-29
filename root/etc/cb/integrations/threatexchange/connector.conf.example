@@ -50,11 +50,11 @@ tx_secret_key=
 # WHAT LEVEL OF REPORTS TO GATHER (THIS LEVEL AND MORE SEVERE)
 tx_minimum_severity=INFO
 
-# receive up to 100 records per request
-tx_request_limit=100
+# receive up to 500 records per request
+tx_request_limit=500
 
-# retry up to 10 times
-tx_request_retries=10
+# retry up to 5 times
+tx_request_retries=5
 
 # CHANGE THESE IF YOU HAVE SPECIFIC VALUES YOU WANT
 # THE COMMENTED OUT VALUES ARE THE DEFAULTS

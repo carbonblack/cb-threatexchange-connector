@@ -84,7 +84,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         self.validated_config = self.validate_config()
 
         self.cb = None
-        self.feed_name = "threatexchange"
+        self.feed_name = "threatexchangeconnector"
         self.display_name = "ThreatExchange"
         self.directory = template_folder
         self.cb_image_path = "/carbonblack.png"
@@ -107,7 +107,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
 
     def create_feed(self):
         return FeedHandler(generate_feed(
-                self.name,
+                self.feed_name,
                 summary="Connector for Threat intelligence data from Facebook ThreatExchange",
                 tech_data="""This connector enables members of the Facebook ThreatExchange to import threat indicators
                 from the ThreatExchange, including domain names, IPs, hashes, and behavioral indicators, into Carbon
@@ -160,12 +160,12 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
             self.logger.setLevel(logging.DEBUG)
 
     def get_or_create_feed(self):
-        feed_id = self.cb.feed_get_id_by_name(self.name)
-        self.logger.info("Feed id for %s: %s" % (self.name, feed_id))
+        feed_id = self.cb.feed_get_id_by_name(self.feed_name)
+        self.logger.info("Feed id for %s: %s" % (self.feed_name, feed_id))
         if not feed_id:
             feed_url = "http://%s:%d%s" % (self.bridge_options["feed_host"], int(self.bridge_options["listener_port"]),
                                            self.json_feed_path)
-            self.logger.info("Creating %s feed @ %s for the first time" % (self.name, feed_url))
+            self.logger.info("Creating %s feed @ %s for the first time" % (self.feed_name, feed_url))
             # TODO: clarification of feed_host vs listener_address
             result = self.cb.feed_add_from_url(feed_url, True, False, False)
 
@@ -263,8 +263,8 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
     def perform_feed_retrieval(self):
         new_feed = self.create_feed()
 
-        tx_limit = self.bridge_options.get('tx_request_limit', 100) or 100
-        tx_retries = self.bridge_options.get('tx_request_retries', 10) or 10
+        tx_limit = self.bridge_options.get('tx_request_limit', 500) or 500
+        tx_retries = self.bridge_options.get('tx_request_retries', 5) or 5
 
         now = datetime.utcnow()
         since_date = now - timedelta(days=self.bridge_options["historical_days"])
