@@ -8,7 +8,7 @@ from cbopensource.connectors.threatexchange.bridge import ThreatExchangeConnecto
 from cbopensource.connectors.threatexchange.version import __version__
 
 if __name__ == "__main__":
-    name = "threatexchangeconnector"
+    name = "fbthreatexchangeconnector"
 
     # set the path to the CA certificate PEM file to our local cache
     cacert_pem_path = "/usr/share/cb/integrations/threatexchange/cacert.pem"

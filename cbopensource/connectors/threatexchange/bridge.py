@@ -107,7 +107,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
 
     def create_feed(self):
         return FeedHandler(generate_feed(
-                self.feed_name,
+                self.name,
                 summary="Connector for Threat intelligence data from Facebook ThreatExchange",
                 tech_data="""This connector enables members of the Facebook ThreatExchange to import threat indicators
                 from the ThreatExchange, including domain names, IPs, hashes, and behavioral indicators, into Carbon
@@ -225,10 +225,10 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
             else:
                 self.bridge_options["ioc_types"].append(ioc_type)
 
-        self.bridge_options["historical_days"] = self.get_config_integer("tx_historical_days", 30)
+        self.bridge_options["historical_days"] = self.get_config_integer("tx_historical_days", 7)
 
         # retrieve once a day by default
-        self.bridge_options["feed_retrieval_interval"] = self.get_config_integer("tx_retrieval_interval", 1440)
+        self.bridge_options["feed_retrieval_interval"] = self.get_config_integer("tx_retrieval_interval", 120)
 
         self.bridge_options["minimum_severity"] = self.get_config_string("tx_minimum_severity", "WARNING")
         status_filter = self.get_config_string("tx_status_filter", None)
@@ -243,6 +243,8 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         if not self.validated_config:
             self.validate_config()
 
+        sleep_secs = int(self.bridge_options["feed_retrieval_interval"]) * 60
+
         while True:
             self.logger.info("Beginning Feed Retrieval")
 
@@ -252,7 +254,8 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
                 self.logger.info("Facebook ThreatExchange feed retrieval succeeded after %0.2f seconds" % t.interval)
                 self.get_or_create_feed()
                 self.cb.feed_synchronize(self.feed_name)
-                time.sleep(self.bridge_options["feed_retrieval_interval"] * 60)
+                self.logger.info("Sleeping for %d seconds" % sleep_secs)
+                time.sleep(sleep_secs)
             except Exception as e:
                 self.logger.exception("Exception during feed retrieval. Will retry in 60 seconds")
                 time.sleep(60)

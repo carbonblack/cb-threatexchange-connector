@@ -22,7 +22,7 @@ feed_retrieval_minutes=120
 #     CARBON BLACK CONFIGURATION
 #------------------------------------------------------------------------------
 
-#### CB SERVER API TOKEN (REQUIRED!)
+#### CB SERVER API TOKEN (** REQUIRED **)
 # API key for an administrative user of the Carbon Black server
 carbonblack_server_token=
 
@@ -43,9 +43,11 @@ carbonblack_server_token=
 #    THREATEXCHANGE CONFIGURATION
 #------------------------------------------------------------------------------
 
-# API CREDENTIALS (REQUIRED!)
+# API CREDENTIALS (** REQUIRED **)
 tx_app_id=
 tx_secret_key=
+
+# WHAT LEVEL OF REPORTS TO GATHER (THIS LEVEL AND MORE SEVERE)
 tx_minimum_severity=INFO
 
 # receive up to 100 records per request
@@ -59,6 +61,6 @@ tx_request_retries=10
 #tx_ioc_types=HASH_MD5,DOMAIN,IP_ADDRESS
 
 
-# GO BACK 30 DAYS IN OUR FEED (THIS IS REVOLVING)
-tx_historical_days=30
+# GO BACK 7 DAYS IN OUR FEED (THIS IS REVOLVING)
+tx_historical_days=7
 
