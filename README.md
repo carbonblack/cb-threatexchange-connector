@@ -35,7 +35,7 @@ If you suspect a problem, please first look at the ThreatExchange connector logs
 
 ## Contacting Bit9 Developer Relations Support
 
-Web: https://community.bit9.com/groups/developer-relations
+Web: https://community.bit9.com/community/developer-relations
 E-mail: dev-support@bit9.com
 
 ### Reporting Problems
