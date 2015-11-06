@@ -251,14 +251,18 @@ INDICATOR_PROCESSORS = {
 ALL_INDICATOR_TYPES = ','.join(INDICATOR_PROCESSORS)
 
 
-def process_ioc(ioc_type, raw_data, minimum_severity='WARNING', status_filter=None):
+def process_ioc(ioc_type, raw_data, minimum_severity='WARNING', status_filter=None, minimum_confidence=50):
     if ioc_type not in INDICATOR_PROCESSORS:
         return []
 
     minimum_severity = SEVERITY_LOOKUP.get(minimum_severity, 0)
     current_severity = SEVERITY_LOOKUP.get(raw_data.get('severity', 'UNKNOWN'), 0)
+    current_confidence = raw_data.get('confidence', 0)
 
     if current_severity < minimum_severity:
+        return []
+
+    if current_confidence < minimum_confidence:
         return []
 
     if type(status_filter) == list and raw_data.get('status', 'UNKNOWN') not in status_filter:

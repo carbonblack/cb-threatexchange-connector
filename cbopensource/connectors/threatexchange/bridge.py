@@ -231,6 +231,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         self.bridge_options["feed_retrieval_minutes"] = self.get_config_integer("feed_retrieval_minutes", 120)
 
         self.bridge_options["minimum_severity"] = self.get_config_string("tx_minimum_severity", "WARNING")
+        self.bridge_options["minimum_confidence"] = self.get_config_string("tx_minimum_confidence", 50)
         status_filter = self.get_config_string("tx_status_filter", None)
         if type(status_filter) == str:
             self.bridge_options["status_filter"] = status_filter.split(',')
@@ -285,12 +286,13 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
                                                            dict_generator=True,
                                                            limit=tx_limit,
                                                            retries=tx_retries,
-                                                           fields="raw_indicator,owner,indicator{id,indicator},type,last_updated,share_level,severity,description,report_urls,status"):
+                                                           fields="raw_indicator,owner,indicator{id,indicator},type,last_updated,share_level,severity,description,report_urls,status,confidence"):
 
                         new_reports = processing_engines.process_ioc(ioc_type,
                                                                      result,
                                                                      minimum_severity=self.bridge_options["minimum_severity"],
-                                                                     status_filter=self.bridge_options["status_filter"])
+                                                                     status_filter=self.bridge_options["status_filter"],
+                                                                     minimum_confidence=self.bridge_options["minimum_confidence"])
 
                         for report in new_reports:
                             new_feed.add_report(report)
