@@ -231,7 +231,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         self.bridge_options["feed_retrieval_minutes"] = self.get_config_integer("feed_retrieval_minutes", 120)
 
         self.bridge_options["minimum_severity"] = self.get_config_string("tx_minimum_severity", "WARNING")
-        self.bridge_options["minimum_confidence"] = self.get_config_string("tx_minimum_confidence", 50)
+        self.bridge_options["minimum_confidence"] = int(self.get_config_string("tx_minimum_confidence", 50))
         status_filter = self.get_config_string("tx_status_filter", None)
         if type(status_filter) == str:
             self.bridge_options["status_filter"] = status_filter.split(',')
