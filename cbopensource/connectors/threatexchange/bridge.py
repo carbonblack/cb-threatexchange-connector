@@ -7,7 +7,7 @@ import threading
 from version import __version__
 import processing_engines
 import time
-from pytx import access_token
+from pytx.access_token import access_token
 from pytx import ThreatDescriptor
 from pytx.errors import pytxFetchError
 from datetime import datetime, timedelta
@@ -211,7 +211,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
 
         self.bridge_auth["app_id"] = self.get_config_string("tx_app_id")
         self.bridge_auth["secret_key"] = self.get_config_string("tx_secret_key")
-        access_token.init(self.bridge_auth["app_id"], self.bridge_auth["secret_key"])
+        access_token(self.bridge_auth["app_id"], self.bridge_auth["secret_key"])
 
         ioc_types = self.get_config_string("tx_ioc_types", None)
         if not ioc_types or len(ioc_types.strip()) == 0:
