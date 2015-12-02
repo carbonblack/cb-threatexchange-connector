@@ -50,6 +50,9 @@ tx_secret_key=
 # WHAT LEVEL OF REPORTS TO GATHER (THIS LEVEL AND MORE SEVERE)
 tx_minimum_severity=INFO
 
+# WHAT CONFIDENCE OF REPORTS TO GATHER (THIS LEVEL AND GREATER)
+tx_minimum_confidence=50
+
 # receive up to 500 records per request
 tx_request_limit=500
 
