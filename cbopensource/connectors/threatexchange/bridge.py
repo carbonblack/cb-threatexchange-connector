@@ -272,7 +272,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         since_date_str = since_date.strftime("%Y-%m-%d")
         until_date = since_date
 
-        while until_date < now:
+        while until_date < now + timedelta(1):
             until_date += timedelta(days=1)
             until_date_str = until_date.strftime("%Y-%m-%d")
 
