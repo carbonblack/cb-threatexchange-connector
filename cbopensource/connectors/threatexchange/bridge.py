@@ -105,6 +105,8 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
             self.last_sync = "No sync performed"
             self.last_successful_sync = "No sync performed"
 
+        self.temporary_file_store = "/tmp/blah.json"
+
     def create_feed(self):
         return FeedHandler(generate_feed(
                 self.feed_name,
@@ -272,7 +274,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         since_date_str = since_date.strftime("%Y-%m-%d")
         until_date = since_date
 
-        while until_date < now + timedelta(1):
+        while until_date < now + timedelta(days=1):
             until_date += timedelta(days=1)
             until_date_str = until_date.strftime("%Y-%m-%d")
 
