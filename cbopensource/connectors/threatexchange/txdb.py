@@ -11,7 +11,6 @@ import sqlite3
 import re
 import dateutil.parser
 import dateutil.tz
-import json
 
 import processing_engines
 
@@ -73,7 +72,7 @@ def confidence_band(confidence):
 
 
 def ResultIter(cursor, arraysize=1000):
-    'An iterator that uses fetchmany to keep memory usage down'
+    """An iterator that uses fetchmany to keep memory usage down"""
     while True:
         results = cursor.fetchmany(arraysize)
         if not results:
@@ -114,6 +113,7 @@ def add_one_result(cur, result):
 
 
 def build_sql_query(minimum_severity='WARNING', status_filter=None, minimum_confidence=50):
+    # TODO: parameterize the sql queries here
     query = ["SELECT * FROM indicator_descriptors,owners WHERE indicator_descriptors.owner_id = owners.id"]
 
     severity_levels = processing_engines.SEVERITY_LEVELS[processing_engines.SEVERITY_LEVELS.index(minimum_severity):]
