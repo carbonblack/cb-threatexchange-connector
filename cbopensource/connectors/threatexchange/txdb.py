@@ -1,9 +1,11 @@
 import sys
 import traceback
+import logging
 
 import datetime
 
-from bridge import ThreatExchangeConnector
+from pytx.errors import pytxFetchError
+
 from pytx import ThreatDescriptor
 import sqlite3
 import re
@@ -12,6 +14,9 @@ import dateutil.tz
 import json
 
 import processing_engines
+
+
+logger = logging.getLogger(__name__)
 
 
 db_schema = '''
@@ -141,7 +146,6 @@ class ThreatExchangeDb(object):
     def generate_reports(self, minimum_severity='WARNING', status_filter=None, minimum_confidence=50):
         cur = self.dbconn.cursor()
         q = build_sql_query(minimum_severity, status_filter, minimum_confidence)
-        print q
 
         cur.execute(q)
 
@@ -155,7 +159,7 @@ class ThreatExchangeDb(object):
         self.dbconn.execute("DELETE FROM indicator_descriptors WHERE last_updated < ?", (ts,))
         self.dbconn.commit()
 
-    def update(self, ioc_types):
+    def update(self, ioc_types, tx_limit=250, tx_retries=5):
         now = datetime.datetime.utcnow()
         since_date = now - datetime.timedelta(days=1)
         to_date = now + datetime.timedelta(days=1)
@@ -172,52 +176,28 @@ class ThreatExchangeDb(object):
         to_date = to_date.strftime("%Y-%m-%d")
 
         for ioc_type in ioc_types:
-            print "querying %s from %s to %s" % (ioc_type, since_date, to_date)
-            for result in ThreatDescriptor.objects(since=since_date, until=to_date, type_=ioc_type,
-                                                   limit=250, retries=5,
-                                                   fields="raw_indicator,owner,indicator{id,indicator},type," +
-                                                          "last_updated,share_level,severity,description,report_urls," +
-                                                          "status,confidence,threat_type"):
-                sys.stdout.write('.')
-                sys.stdout.flush()
-
-                cur = self.dbconn.cursor()
-                try:
-                    add_one_result(cur, result)
-                except Exception as e:
-                    traceback.print_exc()
-                    print result.to_dict()
-                    self.dbconn.rollback()
-                else:
-                    self.dbconn.commit()
-                    owner_cache.add(result.owner["id"])
-                finally:
-                    cur.close()
-
-
-def main():
-    tx = ThreatExchangeConnector("threatexchangeconnector", "testing.config", logfile="/tmp/cb-tx-test.log", debug=True)
-    tx.validate_config()
-
-    db = ThreatExchangeDb("/tmp/blah.db")
-    db.cull_before(dateutil.parser.parse('2012-12-09'))
-    db.update(["IP_ADDRESS", "HASH_MD5", "DOMAIN"])
-
-    new_feed = tx.create_feed()
-    count = 0
-
-    for report in db.generate_reports(minimum_confidence=0, minimum_severity="UNKNOWN"):
-        new_feed.add_report(report)
-        count += 1
-
-    print json.dumps(new_feed.retrieve_feed())
-
-    return 0
+            try:
+                sys.stderr.write("querying %s from %s to %s\n" % (ioc_type, since_date, to_date))
+                for result in ThreatDescriptor.objects(since=since_date, until=to_date, type_=ioc_type,
+                                                       limit=tx_limit, retries=tx_retries,
+                                                       fields="raw_indicator,owner,indicator{id,indicator},type," +
+                                                              "last_updated,share_level,severity,description,report_urls," +
+                                                              "status,confidence,threat_type"):
+                    cur = self.dbconn.cursor()
+                    try:
+                        add_one_result(cur, result)
+                    except Exception as e:
+                        traceback.print_exc()
+                        print result.to_dict()
+                        self.dbconn.rollback()
+                    else:
+                        self.dbconn.commit()
+                        owner_cache.add(result.owner["id"])
+                    finally:
+                        cur.close()
+            except pytxFetchError:
+                logger.warning("Could not retrieve some IOCs of type %s. Continuing." % ioc_type)
+            except Exception as e:
+                logger.exception("Unknown exception retrieving IOCs of type %s." % ioc_type)
 
 
-if __name__ == '__main__':
-    sys.exit(main())
-    # tx.perform_feed_retrieval()
-    # f = file('/tmp/cb-out.json', 'wb')
-    # f.write(tx.handle_json_feed_request().get_data())
-    # f.close()

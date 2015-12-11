@@ -15,6 +15,8 @@ import cbapi
 import copy
 from collections import defaultdict
 
+from txdb import ThreatExchangeDb
+
 
 class FeedHandler(object):
     def __init__(self, feed_metadata):
@@ -265,53 +267,23 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
 
     def perform_feed_retrieval(self):
         new_feed = self.create_feed()
+        db = ThreatExchangeDb("./tx.db")
+
+        now = datetime.utcnow()
+        since_date = now - timedelta(days=self.bridge_options["historical_days"])
+        db.cull_before(since_date)
 
         tx_limit = self.bridge_options.get('tx_request_limit', 500) or 500
         tx_retries = self.bridge_options.get('tx_request_retries', 5) or 5
 
-        now = datetime.utcnow()
-        since_date = now - timedelta(days=self.bridge_options["historical_days"])
-        since_date_str = since_date.strftime("%Y-%m-%d")
-        until_date = since_date
+        db.update(self.bridge_options["ioc_types"], tx_limit, tx_retries)
 
-        while until_date < now + timedelta(days=1):
-            until_date += timedelta(days=1)
-            until_date_str = until_date.strftime("%Y-%m-%d")
+        minimum_severity = self.bridge_options["minimum_severity"]
+        status_filter = self.bridge_options["status_filter"]
+        minimum_confidence = self.bridge_options["minimum_confidence"]
 
-            for ioc_type in self.bridge_options["ioc_types"]:
-                self.logger.info("Pulling %s IOCs (%s to %s)" % (ioc_type, since_date_str, until_date_str))
-                try:
-                    count = 0
-                    for result in ThreatDescriptor.objects(since=since_date_str,
-                                                           until=until_date_str,
-                                                           type_=ioc_type,
-                                                           dict_generator=True,
-                                                           limit=tx_limit,
-                                                           retries=tx_retries,
-                                                           fields="raw_indicator,owner,indicator{id,indicator},type,last_updated,share_level,severity,description,report_urls,status,confidence"):
-
-                        new_reports = processing_engines.process_ioc(ioc_type,
-                                                                     result,
-                                                                     minimum_severity=self.bridge_options["minimum_severity"],
-                                                                     status_filter=self.bridge_options["status_filter"],
-                                                                     minimum_confidence=self.bridge_options["minimum_confidence"])
-
-                        for report in new_reports:
-                            new_feed.add_report(report)
-                            count += 1
-
-                        if count % 1000 == 0:
-                            self.logger.info("%s added %d reports for this iteration" % (ioc_type, count))
-
-                    self.logger.info("%s added %d reports TOTAL" % (ioc_type, count))
-
-                except pytxFetchError:
-                    self.logger.warning("Could not retrieve some IOCs of type %s. Continuing." % ioc_type)
-                except Exception:
-                    self.logger.exception("Unknown exception retrieving IOCs of type %s." % ioc_type)
-
-            # update the start date
-            since_date_str = until_date_str
+        for report in db.generate_reports(minimum_severity, status_filter, minimum_confidence):
+            new_feed.add_report(report)
 
         with self.feed_lock:
             self.feed = new_feed
