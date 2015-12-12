@@ -54,9 +54,6 @@ create index descriptor_time_index on indicator_descriptors(last_updated);
 '''
 
 owner_cache = set()
-tz_pattern = re.compile("([^ T]*)[T ](\d+:\d+:\d+)(\.\d+)?(([\+\-Z])(.*))?")
-unix_epoch = datetime.datetime(year=1970, month=1, day=1, tzinfo=None)
-
 
 confidence_level_map = [
     [33, "LOW"],
@@ -113,18 +110,21 @@ def add_one_result(cur, result):
 
 
 def build_sql_query(minimum_severity='WARNING', status_filter=None, minimum_confidence=50):
-    # TODO: parameterize the sql queries here
     query = ["SELECT * FROM indicator_descriptors,owners WHERE indicator_descriptors.owner_id = owners.id"]
+    query_parameters = []
 
     severity_levels = processing_engines.SEVERITY_LEVELS[processing_engines.SEVERITY_LEVELS.index(minimum_severity):]
-    query.append("(%s)" % " OR ".join(["severity = '%s'" % severity_level for severity_level in severity_levels]))
+    query.append("(%s)" % " OR ".join(["severity = ?" for _ in severity_levels]))
+    query_parameters.extend(severity_levels)
 
     if status_filter is list:
-        query.append(" AND ".join(["status <> '%s'" % status for status in status_filter]))
+        query.append(" AND ".join(["status <> ?" for _ in status_filter]))
+        query_parameters.extend(status_filter)
 
-    query.append("confidence >= %d" % minimum_confidence)
+    query.append("confidence >= ?")
+    query_parameters.append(minimum_confidence)
 
-    return " AND ".join(query)
+    return " AND ".join(query), tuple(query_parameters)
 
 
 class ThreatExchangeDb(object):
@@ -145,9 +145,11 @@ class ThreatExchangeDb(object):
 
     def generate_reports(self, minimum_severity='WARNING', status_filter=None, minimum_confidence=50):
         cur = self.dbconn.cursor()
-        q = build_sql_query(minimum_severity, status_filter, minimum_confidence)
+        q, params = build_sql_query(minimum_severity, status_filter, minimum_confidence)
 
-        cur.execute(q)
+        print q
+        print params
+        cur.execute(q, params)
 
         for res in ResultIter(cur):
             new_reports = processing_engines.process_ioc(res, minimum_severity, status_filter, minimum_confidence)
@@ -181,8 +183,8 @@ class ThreatExchangeDb(object):
                 for result in ThreatDescriptor.objects(since=since_date, until=to_date, type_=ioc_type,
                                                        limit=tx_limit, retries=tx_retries,
                                                        fields="raw_indicator,owner,indicator{id,indicator},type," +
-                                                              "last_updated,share_level,severity,description,report_urls," +
-                                                              "status,confidence,threat_type"):
+                                                              "last_updated,share_level,severity,description," +
+                                                              "report_urls,status,confidence,threat_type"):
                     cur = self.dbconn.cursor()
                     try:
                         add_one_result(cur, result)
