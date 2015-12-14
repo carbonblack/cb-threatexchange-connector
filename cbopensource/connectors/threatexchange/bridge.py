@@ -251,6 +251,11 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         if not self.validated_config:
             self.validate_config()
 
+        proxy_host = self.get_config_string("https_proxy", None)
+        if proxy_host:
+            os.environ['HTTPS_PROXY'] = proxy_host
+            os.environ['no_proxy'] = '127.0.0.1,localhost'
+
         sleep_secs = int(self.bridge_options["feed_retrieval_minutes"]) * 60
 
         while True:
@@ -270,11 +275,6 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
 
     def perform_feed_retrieval(self):
         new_feed = self.create_feed()
-
-        proxy_host = self.get_config_string("https_proxy", None)
-        if proxy_host:
-            os.environ['HTTPS_PROXY'] = proxy_host
-            os.environ['no_proxy'] = '127.0.0.1,localhost'
 
         with ThreatExchangeDb(self.db_file) as db:
             now = datetime.utcnow()
