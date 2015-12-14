@@ -109,8 +109,6 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
             self.last_sync = "No sync performed"
             self.last_successful_sync = "No sync performed"
 
-        self.temporary_file_store = "/tmp/blah.json"
-
     def create_feed(self):
         return FeedHandler(generate_feed(
                 self.feed_name,
