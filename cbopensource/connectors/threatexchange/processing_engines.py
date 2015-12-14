@@ -1,12 +1,10 @@
-__author__ = 'jgarman'
-import time
 import urllib
 import logging
-import re
 import ipaddr
 import struct
 import datetime
 
+__author__ = 'jgarman'
 
 log = logging.getLogger(__name__)
 unix_epoch = datetime.datetime(year=1970, month=1, day=1, tzinfo=None)
@@ -133,7 +131,7 @@ def process_ip_address(report, raw_data):
         report["iocs"]["ipv4"] = [ipv4_indicator]
         return [report]
     else:
-        log.warning("IP address indicator skipped as it is not an IPv4 address: %s\n" % ipv4_indicator)
+        log.debug("IP address indicator skipped as it is not an IPv4 address: %s" % ipv4_indicator)
         return []
 
 

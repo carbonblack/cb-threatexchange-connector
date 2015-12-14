@@ -1,16 +1,11 @@
-import sys
-import traceback
 import logging
-
 import datetime
-
-from pytx.errors import pytxFetchError
-
-from pytx import ThreatDescriptor
 import sqlite3
-import re
 import dateutil.parser
 import dateutil.tz
+
+from pytx import ThreatDescriptor
+from pytx.errors import pytxFetchError
 
 import processing_engines
 
@@ -135,9 +130,16 @@ class ThreatExchangeDb(object):
 
         try:
             cur = self.dbconn.execute("SELECT count(*) FROM indicator_descriptors")
-            (count, ) = cur.fetchone()
+            (_, ) = cur.fetchone()
         except Exception:
             self.create_tables()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.dbconn:
+            self.dbconn.close()
 
     def create_tables(self):
         self.dbconn.executescript(db_schema)
@@ -147,8 +149,6 @@ class ThreatExchangeDb(object):
         cur = self.dbconn.cursor()
         q, params = build_sql_query(minimum_severity, status_filter, minimum_confidence)
 
-        print q
-        print params
         cur.execute(q, params)
 
         for res in ResultIter(cur):
@@ -161,9 +161,9 @@ class ThreatExchangeDb(object):
         self.dbconn.execute("DELETE FROM indicator_descriptors WHERE last_updated < ?", (ts,))
         self.dbconn.commit()
 
-    def update(self, ioc_types, tx_limit=250, tx_retries=5):
+    def update(self, ioc_types, tx_limit=250, tx_retries=5, max_historical_days=2):
         now = datetime.datetime.utcnow()
-        since_date = now - datetime.timedelta(days=1)
+        since_date = now - datetime.timedelta(days=max_historical_days)
         to_date = now + datetime.timedelta(days=1)
 
         try:
@@ -174,12 +174,17 @@ class ThreatExchangeDb(object):
         except sqlite3.OperationalError:
             self.create_tables()
 
+        # clamp maximum historical time
+        if now - since_date > datetime.timedelta(days=max_historical_days):
+            logger.info("Clamping maximum historical query to %d days." % max_historical_days)
+            since_date = now - datetime.timedelta(days=max_historical_days)
+
         since_date = since_date.strftime("%Y-%m-%dT%H:%M:%S+0000")
         to_date = to_date.strftime("%Y-%m-%d")
 
         for ioc_type in ioc_types:
             try:
-                sys.stderr.write("querying %s from %s to %s\n" % (ioc_type, since_date, to_date))
+                logger.info("Querying ThreatExchange for %s indicators from %s to %s" % (ioc_type, since_date, to_date))
                 for result in ThreatDescriptor.objects(since=since_date, until=to_date, type_=ioc_type,
                                                        limit=tx_limit, retries=tx_retries,
                                                        fields="raw_indicator,owner,indicator{id,indicator},type," +
@@ -189,8 +194,7 @@ class ThreatExchangeDb(object):
                     try:
                         add_one_result(cur, result)
                     except Exception as e:
-                        traceback.print_exc()
-                        print result.to_dict()
+                        logger.exception("Exception processing threat descriptor: %s" % result.to_dict())
                         self.dbconn.rollback()
                     else:
                         self.dbconn.commit()
