@@ -149,7 +149,7 @@ scripts = {
 
 setup(
     name='python-cb-threatexchange-connector',
-    version="1.0",
+    version="1.1",
     packages=['cbopensource', 'cbopensource.connectors', 'cbopensource.connectors.threatexchange'],
     url='https://github.com/carbonblack/cb-threatexchange-connector',
     license='MIT',
