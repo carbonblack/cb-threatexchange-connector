@@ -27,6 +27,17 @@ service cb-threatexchange-connector start
 
 Any errors will be logged into `/var/log/cb/integrations/threatexchange/threatexchange.log`.
 
+## Changelog
+
+### Version 1.1 
+
+Version 1.1 of the ThreatExchange connector introduces persistent storage for historical ThreatExchange feed data.
+The connector will now only query for new indicators that have been produced since the last time it was run (by default,
+every two hours; configurable via `feed_retrieval_minutes` in the configuration file) and store all indicators for a 
+maximum duration (by default, 7 days; configurable via `tx_historical_days` in the configuration file).
+
+The feed data is stored in a SQLite database in `/usr/share/cb/integrations/threatexchange/db/threatexchange.db`.
+
 ## Troubleshooting
 
 If you suspect a problem, please first look at the ThreatExchange connector logs found here: 
