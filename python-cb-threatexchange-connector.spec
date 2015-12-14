@@ -51,6 +51,8 @@ chkconfig --level 345 cb-threatexchange-connector on
 # not auto-starting because conf needs to be updated
 #/etc/init.d/cb-threatexchange-connector start
 
+mkdir -p /usr/share/cb/integrations/threatexchange/db
+
 %preun
 /etc/init.d/cb-threatexchange-connector stop
 

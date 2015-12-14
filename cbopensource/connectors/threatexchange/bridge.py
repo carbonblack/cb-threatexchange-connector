@@ -1,19 +1,22 @@
+import logging
+import os
+import threading
+import time
+import copy
+from collections import defaultdict
+from datetime import datetime, timedelta
+
 from cbint import CbIntegrationDaemon
 from cbint.utils.flaskfeed import FlaskFeed
 from cbint.utils.feed import generate_feed
 from cbint.utils.daemon import Timer, ConfigurationError
-import logging
-import threading
-from version import __version__
-import processing_engines
-import time
-from pytx.access_token import access_token
-from pytx import ThreatDescriptor
-from pytx.errors import pytxFetchError
-from datetime import datetime, timedelta
 import cbapi
-import copy
-from collections import defaultdict
+
+from pytx.access_token import access_token
+
+import processing_engines
+from txdb import ThreatExchangeDb
+from version import __version__
 
 
 class FeedHandler(object):
@@ -69,10 +72,11 @@ class FeedHandler(object):
 
 
 class ThreatExchangeConnector(CbIntegrationDaemon):
-    def __init__(self, name, configfile, logfile=None, pidfile=None, debug=False):
+    def __init__(self, name, configfile, logfile=None, pidfile=None, debug=False, dbfile=None):
         CbIntegrationDaemon.__init__(self, name, configfile=configfile, logfile=logfile,
                                      pidfile=pidfile, debug=debug)
         template_folder = "/usr/share/cb/integrations/threatexchange/content"
+        self.db_file = dbfile or "/usr/share/cb/integrations/threatexchange/db/threatexchange.db"
         self.flask_feed = FlaskFeed(__name__, False, template_folder)
         self.bridge_options = {}
         self.bridge_auth = {}
@@ -183,7 +187,8 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
 
         self.cb = cbapi.CbApi(self.get_config_string('carbonblack_server_url', 'https://127.0.0.1'),
                               token=self.get_config_string('carbonblack_server_token'),
-                              ssl_verify=self.get_config_boolean('carbonblack_server_sslverify', False))
+                              ssl_verify=self.get_config_boolean('carbonblack_server_sslverify', False),
+                              ignore_system_proxy=True)
 
         self.logger.debug("starting continuous feed retrieval thread")
         work_thread = threading.Thread(target=self.perform_continuous_feed_retrieval)
@@ -244,6 +249,11 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         if not self.validated_config:
             self.validate_config()
 
+        proxy_host = self.get_config_string("https_proxy", None)
+        if proxy_host:
+            os.environ['HTTPS_PROXY'] = proxy_host
+            os.environ['no_proxy'] = '127.0.0.1,localhost'
+
         sleep_secs = int(self.bridge_options["feed_retrieval_minutes"]) * 60
 
         while True:
@@ -264,59 +274,30 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
     def perform_feed_retrieval(self):
         new_feed = self.create_feed()
 
-        tx_limit = self.bridge_options.get('tx_request_limit', 500) or 500
-        tx_retries = self.bridge_options.get('tx_request_retries', 5) or 5
+        with ThreatExchangeDb(self.db_file) as db:
+            now = datetime.utcnow()
+            since_date = now - timedelta(days=self.bridge_options["historical_days"])
+            db.cull_before(since_date)
 
-        now = datetime.utcnow()
-        since_date = now - timedelta(days=self.bridge_options["historical_days"])
-        since_date_str = since_date.strftime("%Y-%m-%d")
-        until_date = since_date
+            tx_limit = self.bridge_options.get('tx_request_limit', 500) or 500
+            tx_retries = self.bridge_options.get('tx_request_retries', 5) or 5
 
-        while until_date < now + timedelta(1):
-            until_date += timedelta(days=1)
-            until_date_str = until_date.strftime("%Y-%m-%d")
+            db.update(self.bridge_options["ioc_types"], tx_limit, tx_retries)
 
-            for ioc_type in self.bridge_options["ioc_types"]:
-                self.logger.info("Pulling %s IOCs (%s to %s)" % (ioc_type, since_date_str, until_date_str))
-                try:
-                    count = 0
-                    for result in ThreatDescriptor.objects(since=since_date_str,
-                                                           until=until_date_str,
-                                                           type_=ioc_type,
-                                                           dict_generator=True,
-                                                           limit=tx_limit,
-                                                           retries=tx_retries,
-                                                           fields="raw_indicator,owner,indicator{id,indicator},type,last_updated,share_level,severity,description,report_urls,status,confidence"):
+            minimum_severity = self.bridge_options["minimum_severity"]
+            status_filter = self.bridge_options["status_filter"]
+            minimum_confidence = self.bridge_options["minimum_confidence"]
 
-                        new_reports = processing_engines.process_ioc(ioc_type,
-                                                                     result,
-                                                                     minimum_severity=self.bridge_options["minimum_severity"],
-                                                                     status_filter=self.bridge_options["status_filter"],
-                                                                     minimum_confidence=self.bridge_options["minimum_confidence"])
-
-                        for report in new_reports:
-                            new_feed.add_report(report)
-                            count += 1
-
-                        if count % 1000 == 0:
-                            self.logger.info("%s added %d reports for this iteration" % (ioc_type, count))
-
-                    self.logger.info("%s added %d reports TOTAL" % (ioc_type, count))
-
-                except pytxFetchError:
-                    self.logger.warning("Could not retrieve some IOCs of type %s. Continuing." % ioc_type)
-                except Exception:
-                    self.logger.exception("Unknown exception retrieving IOCs of type %s." % ioc_type)
-
-            # update the start date
-            since_date_str = until_date_str
+            for report in db.generate_reports(minimum_severity, status_filter, minimum_confidence):
+                new_feed.add_report(report)
 
         with self.feed_lock:
             self.feed = new_feed
 
 
 if __name__ == '__main__':
-    tx = ThreatExchangeConnector("threatexchangeconnector", "testing.config", logfile="/tmp/cb-tx-test.log", debug=True)
+    tx = ThreatExchangeConnector("threatexchangeconnector", "testing.config", logfile="/tmp/cb-tx-test.log",
+                                 dbfile="./tx.db", debug=True)
     tx.validate_config()
     tx.perform_feed_retrieval()
     f = file('/tmp/cb-out.json', 'wb')

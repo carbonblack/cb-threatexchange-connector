@@ -67,3 +67,6 @@ tx_request_retries=5
 # GO BACK 7 DAYS IN OUR FEED (THIS IS REVOLVING)
 tx_historical_days=7
 
+# If you need to use an HTTPS proxy to access the ThreatExchange API server, uncomment and configure the https_proxy
+# variable below.
+# https_proxy=http://proxyuser:proxypass@proxyhostname:proxyport
