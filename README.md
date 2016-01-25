@@ -29,6 +29,10 @@ Any errors will be logged into `/var/log/cb/integrations/threatexchange/threatex
 
 ## Changelog
 
+### Version 1.2
+
+Version 1.2 adds a custom User-Agent to the HTTP requests made to ThreatExchange.
+
 ### Version 1.1 
 
 Version 1.1 of the ThreatExchange connector introduces persistent storage for historical ThreatExchange feed data.

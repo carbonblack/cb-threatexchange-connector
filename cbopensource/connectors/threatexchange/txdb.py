@@ -8,6 +8,7 @@ from pytx import ThreatDescriptor
 from pytx.errors import pytxFetchError
 
 import processing_engines
+from version import __version__
 
 
 logger = logging.getLogger(__name__)
@@ -56,6 +57,7 @@ confidence_level_map = [
     [100, "HIGH"],
 ]
 
+headers = {'User-Agent' : 'CarbonBlackIntegration/v' + __version__}
 
 def confidence_band(confidence):
     for conf_level in confidence_level_map:
@@ -189,7 +191,8 @@ class ThreatExchangeDb(object):
                                                        limit=tx_limit, retries=tx_retries,
                                                        fields="raw_indicator,owner,indicator{id,indicator},type," +
                                                               "last_updated,share_level,severity,description," +
-                                                              "report_urls,status,confidence,threat_type"):
+                                                              "report_urls,status,confidence,threat_type",
+                                                       headers=headers):
                     cur = self.dbconn.cursor()
                     try:
                         add_one_result(cur, result)
@@ -205,5 +208,3 @@ class ThreatExchangeDb(object):
                 logger.warning("Could not retrieve some IOCs of type %s. Continuing." % ioc_type)
             except Exception as e:
                 logger.exception("Unknown exception retrieving IOCs of type %s." % ioc_type)
-
-
