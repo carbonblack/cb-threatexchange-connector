@@ -1,6 +1,5 @@
--e git://github.com/carbonblack/cbapi.git#egg=cbapi&subdirectory=client_apis/python
--e git://github.com/carbonblack/cbfeeds.git#egg=cbfeeds
--e git://github.com/carbonblack/cb-integration.git#egg=cbint
+cbfeeds==0.8.0
+cbint==0.8.10
 pytx==0.3.2
 requests==2.7.0
 ipaddr

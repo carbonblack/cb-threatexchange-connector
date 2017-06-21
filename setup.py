@@ -1,12 +1,7 @@
-#!/usr/bin/env python
-
-__author__ = 'jgarman'
-
 from distutils.core import setup
 from distutils.core import Command
 from distutils.command.bdist_rpm import bdist_rpm
 
-from distutils import log
 from distutils.file_util import write_file
 from distutils.util import change_root, convert_path
 
@@ -37,6 +32,8 @@ class bdist_binaryrpm(bdist_rpm):
 """This install_cb plugin will install all data files associated with the
 tool as well as the pyinstaller-compiled single binary scripts so that
 they can be packaged together in a binary RPM."""
+
+
 class install_cb(Command):
     description = "install binary distribution files"
 
@@ -49,7 +46,7 @@ class install_cb(Command):
         ('force', 'f', "force installation (overwrite existing files)"),
         ('record=', None,
          "filename in which to record list of installed files"),
-        ]
+    ]
 
     boolean_options = ['force']
 
@@ -67,7 +64,7 @@ class install_cb(Command):
                                    ('install_data', 'install_dir'),
                                    ('root', 'root'),
                                    ('force', 'force'),
-                                  )
+                                   )
 
     def run(self):
         for f in self.data_files:
@@ -103,12 +100,12 @@ class install_cb(Command):
             self.mkpath(dir)
 
             data = os.path.join('dist', scriptname)
-            (out, _) = self.copy_file(data, dir, preserve_mode=True)
-            self.outfiles.append(out)
+            out = self.copy_tree(data, dir, preserve_mode=True)
+            self.outfiles.extend(out)
 
         if self.record:
             outputs = self.get_outputs()
-            if self.root:               # strip any package prefix
+            if self.root:  # strip any package prefix
                 root_len = len(self.root)
                 for counter in xrange(len(outputs)):
                     outputs[counter] = outputs[counter][root_len:]
@@ -116,7 +113,6 @@ class install_cb(Command):
                          (self.record, outputs),
                          "writing list of installed files to '%s'" %
                          self.record)
-
 
     def get_inputs(self):
         return self.data_files or []
@@ -137,25 +133,27 @@ def get_data_files(rootdir):
 
     return results
 
+
 data_files = get_data_files("root")
 data_files.append('cb-threatexchange-connector.spec')
 data_files.append('scripts/cb-threatexchange-connector')
 scripts = {
     'cb-threatexchange-connector': {
         'spec': 'cb-threatexchange-connector.spec',
-        'dest': '/usr/share/cb/integrations/threatexchange/cb-threatexchange-connector'
+        'dest': '/usr/share/cb/integrations/threatexchange/bin/'
     }
 }
 
 setup(
     name='python-cb-threatexchange-connector',
-    version="1.2",
+    version='1.2',
     packages=['cbopensource', 'cbopensource.connectors', 'cbopensource.connectors.threatexchange'],
     url='https://github.com/carbonblack/cb-threatexchange-connector',
     license='MIT',
-    author='Bit9 + Carbon Black Developer Network',
-    author_email='dev-support@bit9.com',
-    description='Carbon Black ThreatExchange Connector',
+    author='Carbon Black Developer Network',
+    author_email='dev-support@carbonblack.com',
+    description=
+    'Connector between Carbon Black and threatexchange',
     data_files=data_files,
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -164,7 +162,7 @@ setup(
         'Intended Audience :: Developers',
 
         # Pick your license as you wish (should match "license" above)
-         'License :: OSI Approved :: MIT License',
+        'License :: OSI Approved :: MIT License',
 
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.

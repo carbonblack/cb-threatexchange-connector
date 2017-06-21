@@ -10,7 +10,7 @@
 # Source function library.
 . /etc/rc.d/init.d/functions
 
-exec="/usr/share/cb/integrations/threatexchange/cb-threatexchange-connector"
+exec="/usr/share/cb/integrations/threatexchange/bin/cb-threatexchange-connector"
 prog="cb-threatexchange-connector"
 pidfile="/var/run/cb/integrations/cb-threatexchange-connector.pid"
 
