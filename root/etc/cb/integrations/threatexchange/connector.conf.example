@@ -19,7 +19,7 @@ feed_retrieval_minutes=120
 
 
 #------------------------------------------------------------------------------
-#     CARBON BLACK CONFIGURATION
+#     Cb Response CONFIGURATION
 #------------------------------------------------------------------------------
 
 #### CB SERVER API TOKEN (** REQUIRED **)

@@ -1,4 +1,5 @@
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 import threading
 import time
@@ -10,6 +11,7 @@ from cbint import CbIntegrationDaemon
 from cbint.utils.flaskfeed import FlaskFeed
 from cbint.utils.feed import generate_feed
 from cbint.utils.daemon import Timer, ConfigurationError
+import cbint.utils.filesystem
 import cbapi
 
 from pytx.access_token import access_token
@@ -17,6 +19,13 @@ from pytx.access_token import access_token
 import processing_engines
 from txdb import ThreatExchangeDb
 from version import __version__
+
+from cbapi.response import CbResponseAPI, Feed
+from cbapi.example_helpers import get_object_by_name_or_id
+from cbapi.errors import ServerError
+import traceback
+
+logger = logging.getLogger(__name__)
 
 
 class FeedHandler(object):
@@ -80,10 +89,6 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         self.flask_feed = FlaskFeed(__name__, False, template_folder)
         self.bridge_options = {}
         self.bridge_auth = {}
-        if 'bridge' in self.options:
-            self.debug = self.options['bridge'].get("debug", 0)
-        if self.debug:
-            self.logger.setLevel(logging.DEBUG)
 
         self.validated_config = self.validate_config()
 
@@ -103,32 +108,52 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         self.flask_feed.app.add_url_rule("/", view_func=self.handle_index_request, methods=['GET'])
         self.flask_feed.app.add_url_rule("/feed.html", view_func=self.handle_html_feed_request, methods=['GET'])
 
-        self.logger.debug("generating feed metadata")
+        self.initialize_logging()
+
+        logger.debug("generating feed metadata")
         with self.feed_lock:
             self.feed = self.create_feed()
             self.last_sync = "No sync performed"
             self.last_successful_sync = "No sync performed"
 
+    def initialize_logging(self):
+        if not self.logfile:
+            log_path = "/var/log/cb/integrations/%s/" % self.name
+            cbint.utils.filesystem.ensure_directory_exists(log_path)
+            self.logfile = "%s%s.log" % (log_path, self.name)
+
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.INFO)
+        root_logger.handlers = []
+
+        rlh = RotatingFileHandler(self.logfile, maxBytes=524288, backupCount=10)
+        rlh.setFormatter(logging.Formatter(fmt="%(asctime)s: %(module)s: %(levelname)s: %(message)s"))
+        root_logger.addHandler(rlh)
+
+    @property
+    def integration_name(self):
+        return 'Cb ThreatExchange Connector 1.2.2'
+
     def create_feed(self):
         return FeedHandler(generate_feed(
-                self.feed_name,
-                summary="Connector for Threat intelligence data from Facebook ThreatExchange",
-                tech_data="""This connector enables members of the Facebook ThreatExchange to import threat indicators
+            self.feed_name,
+            summary="Connector for Threat intelligence data from Facebook ThreatExchange",
+            tech_data="""This connector enables members of the Facebook ThreatExchange to import threat indicators
                 from the ThreatExchange, including domain names, IPs, hashes, and behavioral indicators, into Carbon
                 Black. The Facebook ThreatExchange and its members provide and maintain this data. This connector
                 requires an Access Token to the Facebook ThreatExchange API.  For more information, visit:
                 https://developers.facebook.com/products/threat-exchange/""",
-                provider_url="https://developers.facebook.com/products/threat-exchange",
-                icon_path="%s/%s" % (self.directory, self.integration_image_path),
-                small_icon_path="%s/%s" % (self.directory, self.integration_small_image_path),
-                display_name=self.display_name,
-                category="Partner"))
+            provider_url="https://developers.facebook.com/products/threat-exchange",
+            icon_path="%s/%s" % (self.directory, self.integration_image_path),
+            small_icon_path="%s/%s" % (self.directory, self.integration_small_image_path),
+            display_name=self.display_name,
+            category="Partner"))
 
     def serve(self):
         address = self.bridge_options.get('listener_address', '127.0.0.1')
         port = self.bridge_options.get('listener_port', 6120)
-        self.logger.info("starting flask server: %s:%s" % (address, port))
-        self.flask_feed.app.run(port=port, debug=self.debug,
+        logger.info("starting flask server: %s:%s" % (address, port))
+        self.flask_feed.app.run(port=port, debug=False,
                                 host=address, use_reloader=False)
 
     def handle_json_feed_request(self):
@@ -143,7 +168,8 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
 
     def handle_index_request(self):
         with self.feed_lock:
-            index = self.flask_feed.generate_html_index(self.feed.retrieve_feed(), self.bridge_options, self.display_name,
+            index = self.flask_feed.generate_html_index(self.feed.retrieve_feed(), self.bridge_options,
+                                                        self.display_name,
                                                         self.cb_image_path, self.integration_image_path,
                                                         self.json_feed_path, self.last_sync)
         return index
@@ -155,47 +181,71 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         return self.flask_feed.generate_image_response(image_path="%s%s" %
                                                                   (self.directory, self.integration_image_path))
 
-    def on_start(self):
-        if self.debug:
-            self.logger.setLevel(logging.DEBUG)
-
-    def on_stopping(self):
-        if self.debug:
-            self.logger.setLevel(logging.DEBUG)
-
     def get_or_create_feed(self):
-        feed_id = self.cb.feed_get_id_by_name(self.feed_name)
-        self.logger.info("Feed id for %s: %s" % (self.feed_name, feed_id))
-        if not feed_id:
-            feed_url = "http://%s:%d%s" % (self.bridge_options["feed_host"], int(self.bridge_options["listener_port"]),
-                                           self.json_feed_path)
-            self.logger.info("Creating %s feed @ %s for the first time" % (self.feed_name, feed_url))
-            # TODO: clarification of feed_host vs listener_address
-            result = self.cb.feed_add_from_url(feed_url, True, False, False)
+        feed_id = None
+        try:
+            feeds = get_object_by_name_or_id(self.cb, Feed, name=self.feed_name)
+        except Exception as e:
+            logger.error(e.message)
+            feeds = None
 
-            # TODO: defensive coding around these self.cb calls
-            feed_id = result.get('id', 0)
+        if not feeds:
+            logger.info("Feed {} was not found, so we are going to create it".format(self.feed_name))
+            f = self.cb.create(Feed)
+            f.feed_url = "http://%s:%d%s" % (
+                self.bridge_options["feed_host"], int(self.bridge_options["listener_port"]),
+                self.json_feed_path)
+
+            f.enabled = True
+            f.use_proxy = False
+            f.validate_server_cert = False
+            try:
+                f.save()
+            except ServerError as se:
+                if se.error_code == 500:
+                    logger.info("Could not add feed:")
+                    logger.info(
+                        " Received error code 500 from server. This is usually because the server cannot retrieve the feed.")
+                    logger.info(
+                        " Check to ensure the Cb server has network connectivity and the credentials are correct.")
+                else:
+                    logger.info("Could not add feed: {0:s}".format(str(se)))
+            except Exception as e:
+                logger.info("Could not add feed: {0:s}".format(str(e)))
+            else:
+                logger.info("Feed data: {0:s}".format(str(f)))
+                logger.info("Added feed. New feed ID is {0:d}".format(f.id))
+                f.synchronize(False)
+
+        elif len(feeds) > 1:
+            logger.warning("Multiple feeds found, selecting Feed id {}".format(feeds[0].id))
+
+        elif feeds:
+            feed_id = feeds[0].id
+            logger.info("Feed {} was found as Feed ID {}".format(self.feed_name, feed_id))
+            feeds[0].synchronize(False)
 
         return feed_id
 
     def run(self):
-        self.logger.info("starting Carbon Black <-> ThreatExchange Connector | version %s" % __version__)
+        logger.info("starting Carbon Black <-> ThreatExchange Connector | version %s" % __version__)
 
-        self.debug = self.get_config_boolean('debug', False)
-        if self.debug:
-            self.logger.setLevel(logging.DEBUG)
+        try:
+            self.cb = CbResponseAPI(url=self.get_config_string('carbonblack_server_url', 'https://127.0.0.1'),
+                                    token=self.get_config_string('carbonblack_server_token'),
+                                    ssl_verify=self.get_config_boolean('carbonblack_server_sslverify', False),
+                                    integration_name=self.integration_name)
+            self.cb.info()
+        except:
+            logger.error(traceback.format_exc())
+            return False
 
-        self.cb = cbapi.CbApi(self.get_config_string('carbonblack_server_url', 'https://127.0.0.1'),
-                              token=self.get_config_string('carbonblack_server_token'),
-                              ssl_verify=self.get_config_boolean('carbonblack_server_sslverify', False),
-                              ignore_system_proxy=True)
-
-        self.logger.debug("starting continuous feed retrieval thread")
+        logger.debug("starting continuous feed retrieval thread")
         work_thread = threading.Thread(target=self.perform_continuous_feed_retrieval)
         work_thread.setDaemon(True)
         work_thread.start()
 
-        self.logger.debug("starting flask")
+        logger.debug("starting flask")
         self.serve()
 
     def check_required_options(self, opts):
@@ -226,7 +276,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
 
         for ioc_type in ioc_types:
             if ioc_type not in processing_engines.INDICATOR_PROCESSORS:
-                self.logger.warning("%s is not a valid IOC type, ignoring" % ioc_type)
+                logger.warning("%s is not a valid IOC type, ignoring" % ioc_type)
             else:
                 self.bridge_options["ioc_types"].append(ioc_type)
 
@@ -257,18 +307,17 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         sleep_secs = int(self.bridge_options["feed_retrieval_minutes"]) * 60
 
         while True:
-            self.logger.info("Beginning Feed Retrieval")
+            logger.info("Beginning Feed Retrieval")
 
             try:
                 with Timer() as t:
                     self.perform_feed_retrieval()
-                self.logger.info("Facebook ThreatExchange feed retrieval succeeded after %0.2f seconds" % t.interval)
+                logger.info("Facebook ThreatExchange feed retrieval succeeded after %0.2f seconds" % t.interval)
                 self.get_or_create_feed()
-                self.cb.feed_synchronize(self.feed_name)
-                self.logger.info("Sleeping for %d seconds" % sleep_secs)
+                logger.info("Sleeping for %d seconds" % sleep_secs)
                 time.sleep(sleep_secs)
             except Exception as e:
-                self.logger.exception("Exception during feed retrieval. Will retry in 60 seconds")
+                logger.exception("Exception during feed retrieval. Will retry in 60 seconds")
                 time.sleep(60)
 
     def perform_feed_retrieval(self):
