@@ -48,17 +48,17 @@ If you suspect a problem, please first look at the ThreatExchange connector logs
 `/var/log/cb/integrations/threatexchange/threatexchange.log`
 (There might be multiple files as the logger "rolls over" when the log file hits a certain size).
 
-## Contacting Bit9 Developer Relations Support
+## Contacting Carbon Black Developer Relations Support
 
-Web: https://community.bit9.com/community/developer-relations
-E-mail: dev-support@bit9.com
+Web: https://community.carbonblack.com/community/developer-relations
+E-mail: dev-support@carbonblack.com
 
 ### Reporting Problems
 
-When you contact Bit9 Developer Relations Technical Support with an issue, please provide the following:
+When you contact Carbon Black Developer Relations Technical Support with an issue, please provide the following:
 
 * Your name, company name, telephone number, and e-mail address
-* Product name/version, CB Server version, CB Sensor version
+* Product name/version, Cb Response Server version, CB Sensor version
 * Hardware configuration of the Carbon Black Server or computer (processor, memory, and RAM) 
 * For documentation issues, specify the version of the manual you are using. 
 * Action causing the problem, error message returned, and event log output (as appropriate) 

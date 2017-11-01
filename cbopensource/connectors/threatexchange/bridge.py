@@ -132,7 +132,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
 
     @property
     def integration_name(self):
-        return 'Cb ThreatExchange Connector 1.2.2'
+        return 'Cb ThreatExchange Connector 1.2.3'
 
     def create_feed(self):
         return FeedHandler(generate_feed(

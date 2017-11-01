@@ -12,7 +12,7 @@
 
 exec="/usr/share/cb/integrations/threatexchange/bin/cb-threatexchange-connector"
 prog="cb-threatexchange-connector"
-pidfile="/var/run/cb/integrations/cb-threatexchange-connector.pid"
+pidfile="/var/run/cb/integrations/threatexchange.pid"
 
 lockfile=/var/lock/subsys/$prog
 
