@@ -52,6 +52,7 @@ chkconfig --level 345 cb-threatexchange-connector on
 #/etc/init.d/cb-threatexchange-connector start
 
 mkdir -p /usr/share/cb/integrations/threatexchange/db
+mkdir -p /var/log/cb/integrations/threatexchange
 
 %preun
 /etc/init.d/cb-threatexchange-connector stop

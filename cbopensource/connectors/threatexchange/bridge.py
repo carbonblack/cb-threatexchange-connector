@@ -1,5 +1,4 @@
 import logging
-from logging.handlers import RotatingFileHandler
 import os
 import threading
 import time
@@ -11,8 +10,6 @@ from cbint import CbIntegrationDaemon
 from cbint.utils.flaskfeed import FlaskFeed
 from cbint.utils.feed import generate_feed
 from cbint.utils.daemon import Timer, ConfigurationError
-import cbint.utils.filesystem
-import cbapi
 
 from pytx.access_token import access_token
 
@@ -93,6 +90,9 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         self.validated_config = self.validate_config()
 
         self.cb = None
+        #
+        # Override feed name so we don't get a conflict and we keep 'threatexchange' directory naming
+        #
         self.feed_name = "threatexchangeconnector"
         self.display_name = "ThreatExchange"
         self.directory = template_folder
@@ -108,27 +108,11 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
         self.flask_feed.app.add_url_rule("/", view_func=self.handle_index_request, methods=['GET'])
         self.flask_feed.app.add_url_rule("/feed.html", view_func=self.handle_html_feed_request, methods=['GET'])
 
-        self.initialize_logging()
-
         logger.debug("generating feed metadata")
         with self.feed_lock:
             self.feed = self.create_feed()
             self.last_sync = "No sync performed"
             self.last_successful_sync = "No sync performed"
-
-    def initialize_logging(self):
-        if not self.logfile:
-            log_path = "/var/log/cb/integrations/%s/" % self.name
-            cbint.utils.filesystem.ensure_directory_exists(log_path)
-            self.logfile = "%s%s.log" % (log_path, self.name)
-
-        root_logger = logging.getLogger()
-        root_logger.setLevel(logging.INFO)
-        root_logger.handlers = []
-
-        rlh = RotatingFileHandler(self.logfile, maxBytes=524288, backupCount=10)
-        rlh.setFormatter(logging.Formatter(fmt="%(asctime)s: %(module)s: %(levelname)s: %(message)s"))
-        root_logger.addHandler(rlh)
 
     @property
     def integration_name(self):
@@ -199,6 +183,7 @@ class ThreatExchangeConnector(CbIntegrationDaemon):
             f.enabled = True
             f.use_proxy = False
             f.validate_server_cert = False
+            f.name = self.feed_name
             try:
                 f.save()
             except ServerError as se:
