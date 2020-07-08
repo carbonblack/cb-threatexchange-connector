@@ -48,18 +48,8 @@ If you suspect a problem, please first look at the ThreatExchange connector logs
 `/var/log/cb/integrations/threatexchange/threatexchange.log`
 (There might be multiple files as the logger "rolls over" when the log file hits a certain size).
 
-## Contacting Carbon Black Developer Relations Support
+## Support
 
-Web: https://community.carbonblack.com/community/developer-relations
-E-mail: dev-support@carbonblack.com
-
-### Reporting Problems
-
-When you contact Carbon Black Developer Relations Technical Support with an issue, please provide the following:
-
-* Your name, company name, telephone number, and e-mail address
-* Product name/version, Cb Response Server version, CB Sensor version
-* Hardware configuration of the Carbon Black Server or computer (processor, memory, and RAM) 
-* For documentation issues, specify the version of the manual you are using. 
-* Action causing the problem, error message returned, and event log output (as appropriate) 
-* Problem severity
+1. Use the [Developer Community Forum](https://community.carbonblack.com/t5/Developer-Relations/bd-p/developer-relations) to discuss issues and ideas with other API developers in the Carbon Black Community.
+2. Report bugs and change requests through the GitHub issue tracker. Click on the + sign menu on the upper right of the screen and select New issue. You can also go to the Issues menu across the top of the page and click on New issue.
+3. View all API and integration offerings on the [Developer Network](https://developer.carbonblack.com/) along with reference documentation, video tutorials, and how-to guides.
